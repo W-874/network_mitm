@@ -16,6 +16,7 @@
 #include "networkmitm_ssl_context_impl.hpp"
 #include "shim/ssl_shim.h"
 #include "networkmitm_pki_trace.hpp"
+#include "networkmitm_device_pki.hpp"
 #include <stratosphere.hpp>
 
 namespace ams::ssl::sf::impl {
@@ -151,6 +152,10 @@ Result SslContextImpl::RegisterInternalPki(const ams::ssl::sf::InternalPki &pki,
     const u32 type = static_cast<u32>(pki);
     TracePki(m_client_info, m_context_id, "RegisterInternalPki", "phase=begin type=%u(%s)",
              type, type == 1 ? "DeviceClientCertDefault" : (type == 0 ? "None" : "Unknown"));
+    if (ShouldReplaceDevicePki(m_client_info, type)) {
+        TracePki(m_client_info, m_context_id, "RegisterInternalPki", "path=synthetic selected=1");
+        return CreateDevicePki(m_forward_service.get(), m_client_info, m_context_id, certificate_id.GetPointer());
+    }
     const Result rc = sslContextRegisterInternalPki_sfMitm(
         m_forward_service.get(), type, certificate_id.GetPointer());
     if (R_SUCCEEDED(rc)) {

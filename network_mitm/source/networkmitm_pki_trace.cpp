@@ -31,12 +31,12 @@ void Append(const char *line, size_t size) {
 
 u64 AllocateTraceContextId() { return g_next_context.fetch_add(1); }
 
-void InitializePkiTrace() {
+void InitializePkiTrace(bool force) {
     u8 enabled = 0;
     u64 size = 0;
     const auto rc_setting = ::setsysGetSettingsItemValue("network_mitm", "trace_internal_pki",
                                                        &enabled, sizeof(enabled), &size);
-    g_trace_internal_pki = R_SUCCEEDED(rc_setting) && size == sizeof(enabled) && enabled != 0;
+    g_trace_internal_pki = force || (R_SUCCEEDED(rc_setting) && size == sizeof(enabled) && enabled != 0);
     if (!g_trace_internal_pki) return;
     char path[128];
     util::SNPrintf(path, sizeof(path), "%s:/network_mitm",

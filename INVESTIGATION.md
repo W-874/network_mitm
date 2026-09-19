@@ -50,7 +50,7 @@ Published SSL interface version is **5** on 22.x. Service command 5 `SetInterfac
 
 Published context 7/8/12/13 layouts have no documented 22.5.0-specific change. Command 8: u32 enum -> u64 ID; command 12: u32 format + two map-alias input buffers -> u64 ID; command 13: u32=1 + params input buffer + cert/key output buffers -> two u32 lengths. Existing shims match these descriptions. No new definition for these commands is necessary. Hardware compatibility is not yet proven by these descriptions or by compilation.
 
-If replacement is implemented, `KeyAndCertParams` must have size 0x58 and offsets 0,4,8,0x10,0x50 (including four final padding bytes); validate with static_assert. Generate with version=1, 2048 bits, exponent=65537, CN="Nextendo Temporary Client"; use the actual returned DER lengths for import. Use CertificateFormat::Der (1), propagate errors, clear private key memory, return the underlying real PKI ID. Do not forward command 8 first; leave RemoveClientPki as a real forward. No fake IDs.
+If replacement is implemented, `KeyAndCertParams` must have size 0x58 and offsets 0,4,8,0x10,0x50 (including four final padding bytes); validate with static_assert. Generate with version=1, 2048 bits, exponent=65537, CN="Nextendo Temporary Client"; use the actual returned DER lengths for import. Use CertificateFormat::Der (2), propagate errors, clear private key memory, return the underlying real PKI ID. Do not forward command 8 first; leave RemoveClientPki as a real forward. No fake IDs.
 
 ## Integration findings
 

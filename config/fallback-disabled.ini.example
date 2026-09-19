@@ -1,0 +1,12 @@
+; SAFE DEFAULTS. First obtain command 8 failure evidence with instrumentation.
+; Then follow README-TEST.md to enable for observed Program IDs only.
+[network_mitm]
+enable_ssl = u8!0x1
+should_mitm_all = u8!0x1
+trace_internal_pki = u8!0x1
+enable_device_cert_fallback = u8!0x0
+should_dump_ssl_traffic = u8!0x0
+should_disable_ssl_verification = u8!0x0
+; No configured IDs = no replacement. Never use guessed IDs or wildcards.
+; device_cert_fallback_program_ids = str!
+; No custom_ca_public_cert. Preserve Prelude hosts/trust.

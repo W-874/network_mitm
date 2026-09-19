@@ -1,13 +1,13 @@
 # Nextendo / damaged PRODINFO SSL investigation
 
 Research date: 2026-09-20. Target: HOS 22.5.0 / Atmosphère 1.11.2 / emuMMC.
-Status: source investigation complete; untouched upstream build succeeded (devkitA64 r30 / GCC 16.1.0 / libnx 4.12.0); no on-device evidence yet.
+Status: source investigation and both binary builds complete; untouched upstream build succeeded (devkitA64 r30 / GCC 16.1.0 / libnx 4.12.0); no on-device evidence yet.
 
 ## Scope and feasibility
 
 The proposed replacement is plausible at the SSL context boundary. It does not restore a Nintendo identity. A successful local PKI import is not proof that account linking works. The absence of a DNS log alone does not locate the failure: DNS caching, an unobserved caller, another local identity check, or failure before SSL are alternatives. Hardware Level 1 evidence is mandatory before enabling replacement.
 
-No PRODINFO, PRODINFOF, CAL0, BOOT0/1, BIS, eMMC, serial, eTicket keys, ssl_rsa_key, fuses, donor identity, Nintendo certificate/private key, Nintendo endpoints, DNS configuration, or firmware ExeFS is accessed or modified. Building a homebrew exefs.nsp package is not patching the firmware SSL ExeFS.
+The patch adds no direct access to PRODINFO, PRODINFOF, CAL0, BOOT0/1, BIS, eMMC, serial, eTicket keys, ssl_rsa_key, fuses or donor identity. It does not modify any of them, Nintendo certificate/private keys, Nintendo endpoints, DNS configuration or firmware ExeFS. In instrumentation or nonselected calls, the original SSL service may still attempt its normal device-PKI read; that original behavior is intentionally preserved. Building a homebrew exefs.nsp package is not patching the firmware SSL ExeFS.
 
 ## Pinned sources
 
@@ -64,7 +64,7 @@ If replacement is implemented, `KeyAndCertParams` must have size 0x58 and offset
 
 The upstream top-level `Makefile` defines TITLE_ID=`4200000000000666` and packages `out/sd/atmosphere/contents/$(TITLE_ID)/{exefs.nsp,mitm.lst,flags/boot2.flag}`. `network_mitm/network_mitm.json` independently agrees on the title ID. Use this packaging result instead of inventing a contents path. A ZIP must not overwrite system_settings.ini or Prelude hosts.
 
-Planned instrumentation edits: service/context/connection .hpp/.cpp files above; `networkmitm_main.cpp`; `networkmitm_utils.hpp`; new metadata-only tracing helper; documentation and packaging helper. The shim already implements required PKI IPC; do not modify it without a demonstrated ABI reason. If approved for offline preparation, fallback adds a shared helper and strict program-ID configuration/parser, with separate trace-only artifact and no prepopulated IDs.
+Planned instrumentation edits: service/context/connection .hpp/.cpp files above; `networkmitm_main.cpp`; `networkmitm_utils.hpp`; new metadata-only tracing helper; documentation and packaging helper. The shim already implements required PKI IPC; do not modify it without a demonstrated ABI reason. The user approved preparing a separate disabled fallback before on-device evidence; fallback adds a shared helper and strict program-ID configuration/parser, with separate trace-only artifact and no prepopulated IDs.
 
 ## Validation gates
 
@@ -74,3 +74,11 @@ Planned instrumentation edits: service/context/connection .hpp/.cpp files above;
 4. Only then enable a prepared fallback (or implement it after capture), for the observed program IDs; verify generation/import/real ID, DNS, then Nextendo response, then account link.
 
 Untouched baseline NSP SHA-256: `4cc2ce3730632eb66344db81f34e64d50711fb211bca369debf3ba25691afd94`. Build exit status 0. Build logs preserve upstream warnings. npdmtool legacy field notices were checked against the generated ACI0 and ACID: program ID/range are correct.
+
+## Implemented adjustment and current result
+
+The requested hardware gate is preserved as a deployment gate: both builds are prepared, but first install the independently tagged trace-only artifact. The user explicitly chose this two-artifact workflow during this session. No program ID has been guessed or prepopulated. The final fallback default is off and an absent/invalid list permits no replacements.
+
+Implemented metadata helpers: `networkmitm_pki_trace.{hpp,cpp}`. Fallback implementation: `networkmitm_device_pki.{hpp,cpp}`, portable `networkmitm_pki_policy.hpp` and `networkmitm_synthetic_pki.hpp`. The production helper uses existing command13/12 shims on the original Service pointer, 4096 bytes per DER buffer, actual returned lengths, error propagation, volatile memory erasure. Existing `shim/ssl_shim.{h,c}` and Atmosphere-libs remain unchanged.
+
+Host tests and sanitizer runs passed; all three cross-builds passed. See BUILD-REPORT.md for binary source commits, checksums, exact tools and the unverified hardware boundaries. README-TEST.md gives the required Level 1 gate and subsequent Levels 2–5. There is no Plan B fake ID branch and no firmware IPS.

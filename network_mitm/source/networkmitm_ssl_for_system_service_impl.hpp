@@ -23,6 +23,7 @@
 #define AMS_INTERFACE_ISSLSERVICEFORSYSTEM_INFO(C, H) \
     AMS_SF_METHOD_INFO(C, H, 0, Result, CreateContext, (const ams::ssl::sf::SslVersion &version, const ams::sf::ClientProcessId &client_pid, ams::sf::Out<ams::sf::SharedPointer<ams::ssl::sf::ISslContext>> out), (version, client_pid, out)) \
     AMS_SF_METHOD_INFO(C, H, 2, Result, GetCertificates, (const ams::sf::InArray<ams::ssl::sf::CaCertificateId> &ids, ams::sf::Out<u32> certificates_count, const ams::sf::OutBuffer &certificates), (ids, certificates_count, certificates)) \
+    AMS_SF_METHOD_INFO(C, H, 5, Result, SetInterfaceVersion, (u32 version), (version), hos::Version_3_0_0) \
     AMS_SF_METHOD_INFO(C, H, 100, Result, CreateContextForSystem, (const ams::ssl::sf::SslVersion &version, const ams::sf::ClientProcessId &client_pid, ams::sf::Out<ams::sf::SharedPointer<ams::ssl::sf::ISslContextForSystem>> out), (version, client_pid, out)) \
 
 AMS_SF_DEFINE_MITM_INTERFACE(ams::ssl::sf, ISslServiceForSystem, AMS_INTERFACE_ISSLSERVICEFORSYSTEM_INFO, 0xA864049E)
@@ -43,6 +44,7 @@ namespace ams::ssl::sf::impl {
                 return g_should_mitm_all;
             }
 
+            Result SetInterfaceVersion(u32 version);
             Result CreateContext(const ams::ssl::sf::SslVersion &version, const ams::sf::ClientProcessId &client_pid, ams::sf::Out<ams::sf::SharedPointer<ams::ssl::sf::ISslContext>> out);
             Result GetCertificates(const ams::sf::InArray<ams::ssl::sf::CaCertificateId> &ids, ams::sf::Out<u32> certificates_count, const ams::sf::OutBuffer &certificates);
             Result GetCertificateBufSize(const ams::sf::InArray<ams::ssl::sf::CaCertificateId> &ids, ams::sf::Out<u32> buffer_size);

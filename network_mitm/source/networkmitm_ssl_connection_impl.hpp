@@ -72,12 +72,13 @@ namespace ams::ssl::sf::impl {
             std::unique_ptr<::Service> m_forward_service;
             sm::MitmProcessInfo m_client_info;
             PcapFileWriter *m_writer;
+            u64 m_context_id;
             ams::ssl::sf::VerifyOption m_requested_option = (ams::ssl::sf::VerifyOption)3;
             bool m_requested_default_verify;
         public:
             SslConnectionImpl(std::unique_ptr<::Service> &&s,
-                            const sm::MitmProcessInfo &c, PcapFileWriter *writter)
-                : m_forward_service(std::move(s)), m_client_info(c), m_writer(writter) {
+                            const sm::MitmProcessInfo &c, PcapFileWriter *writter, u64 context_id)
+                : m_forward_service(std::move(s)), m_client_info(c), m_writer(writter), m_context_id(context_id) {
                 if (g_should_disable_ssl_verification) {
                     Result res;
                     if (R_FAILED(

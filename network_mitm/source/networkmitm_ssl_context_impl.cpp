@@ -15,6 +15,7 @@
  */
 #include "networkmitm_ssl_context_impl.hpp"
 #include "shim/ssl_shim.h"
+#include "networkmitm_pki_trace.hpp"
 #include <stratosphere.hpp>
 
 namespace ams::ssl::sf::impl {
@@ -36,9 +37,11 @@ Result SslContextImpl::GetOption(const ams::ssl::sf::OptionType &option,
 
 Result SslContextImpl::CreateConnection(
     ams::sf::Out<ams::sf::SharedPointer<ams::ssl::sf::ISslConnection>> out) {
+    TracePki(m_client_info, m_context_id, "CreateConnection", "phase=begin");
     Service out_tmp;
-    R_TRY(sslContextCreateConnection_sfMitm(m_forward_service.get(),
-                                            std::addressof(out_tmp)));
+    const Result rc = sslContextCreateConnection_sfMitm(m_forward_service.get(), &out_tmp);
+    TracePki(m_client_info, m_context_id, "CreateConnection", "forward_result=0x%08X", rc.GetValue());
+    R_TRY(rc);
 
     PcapFileWriter *writter = nullptr;
 
@@ -94,7 +97,7 @@ Result SslContextImpl::CreateConnection(
 
     out.SetValue(
         ams::sf::CreateSharedObjectEmplaced<ISslConnection, SslConnectionImpl>(
-            std::make_unique<::Service>(out_tmp), m_client_info, writter),
+            std::make_unique<::Service>(out_tmp), m_client_info, writter, m_context_id),
         target_object_id);
 
     R_SUCCEED();
@@ -137,19 +140,27 @@ Result SslContextImpl::RemoveServerPki(u64 certificate_id) {
 }
 
 Result SslContextImpl::RemoveClientPki(u64 certificate_id) {
-    R_TRY(sslContextRemoveClientPki_sfMitm(m_forward_service.get(),
-                                           certificate_id));
-
-    R_SUCCEED();
+    const Result rc = sslContextRemoveClientPki_sfMitm(m_forward_service.get(), certificate_id);
+    TracePki(m_client_info, m_context_id, "RemoveClientPki", "pki_id=%llu forward_result=0x%08X",
+             static_cast<unsigned long long>(certificate_id), rc.GetValue());
+    return rc;
 }
 
 Result SslContextImpl::RegisterInternalPki(const ams::ssl::sf::InternalPki &pki,
-                                           ams::sf::Out<u64> certificate_id) {
-    R_TRY(sslContextRegisterInternalPki_sfMitm(m_forward_service.get(),
-                                               static_cast<u32>(pki),
-                                               certificate_id.GetPointer()));
-
-    R_SUCCEED();
+                                             ams::sf::Out<u64> certificate_id) {
+    const u32 type = static_cast<u32>(pki);
+    TracePki(m_client_info, m_context_id, "RegisterInternalPki", "phase=begin type=%u(%s)",
+             type, type == 1 ? "DeviceClientCertDefault" : (type == 0 ? "None" : "Unknown"));
+    const Result rc = sslContextRegisterInternalPki_sfMitm(
+        m_forward_service.get(), type, certificate_id.GetPointer());
+    if (R_SUCCEEDED(rc)) {
+        TracePki(m_client_info, m_context_id, "RegisterInternalPki", "type=%u forward_result=0x%08X pki_id=%llu",
+                 type, rc.GetValue(), static_cast<unsigned long long>(certificate_id.GetValue()));
+    } else {
+        TracePki(m_client_info, m_context_id, "RegisterInternalPki", "type=%u forward_result=0x%08X",
+                 type, rc.GetValue());
+    }
+    return rc;
 }
 
 Result

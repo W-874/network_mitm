@@ -16,6 +16,7 @@
 #include "networkmitm_ssl_connection_impl.hpp"
 #include "networkmitm_utils.hpp"
 #include "shim/ssl_shim.h"
+#include "networkmitm_pki_trace.hpp"
 #include <stratosphere.hpp>
 
 namespace ams::ssl::sf::impl {
@@ -97,20 +98,24 @@ Result SslConnectionImpl::GetIoMode(ams::sf::Out<ams::ssl::sf::IoMode> mode) {
 }
 
 Result SslConnectionImpl::DoHandshake() {
-    R_TRY(sslConnectionDoHandshake_sfMitm(m_forward_service.get()));
-
-    R_SUCCEED();
+    TracePki(m_client_info, m_context_id, "DoHandshake", "phase=begin conn=%p", static_cast<void *>(this));
+    const Result rc = sslConnectionDoHandshake_sfMitm(m_forward_service.get());
+    TracePki(m_client_info, m_context_id, "DoHandshake", "conn=%p forward_result=0x%08X",
+             static_cast<void *>(this), rc.GetValue());
+    return rc;
 }
 
 Result SslConnectionImpl::DoHandshakeGetServerCert(
     ams::sf::Out<u32> buffer_size, ams::sf::Out<u32> certificates_count,
     const ams::sf::OutBuffer &server_cert_buffer) {
-    R_TRY(sslConnectionDoHandshakeGetServerCert_sfMitm(
+    TracePki(m_client_info, m_context_id, "DoHandshakeGetServerCert", "phase=begin conn=%p", static_cast<void *>(this));
+    const Result rc = sslConnectionDoHandshakeGetServerCert_sfMitm(
         m_forward_service.get(), buffer_size.GetPointer(),
         certificates_count.GetPointer(), server_cert_buffer.GetPointer(),
-        server_cert_buffer.GetSize()));
-
-    R_SUCCEED();
+        server_cert_buffer.GetSize());
+    TracePki(m_client_info, m_context_id, "DoHandshakeGetServerCert", "conn=%p forward_result=0x%08X",
+             static_cast<void *>(this), rc.GetValue());
+    return rc;
 }
 
 Result SslConnectionImpl::Read(ams::sf::Out<u32> read_count,

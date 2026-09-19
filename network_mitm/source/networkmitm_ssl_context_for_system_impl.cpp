@@ -1,5 +1,6 @@
 #include "networkmitm_ssl_context_for_system_impl.hpp"
 #include "shim/ssl_shim.h"
+#include "networkmitm_pki_trace.hpp"
 #include <stratosphere.hpp>
 
 namespace ams::ssl::sf::impl {
@@ -23,9 +24,11 @@ SslContextForSystemImpl::GetOption(const ams::ssl::sf::OptionType &option,
 
 Result SslContextForSystemImpl::CreateConnection(
     ams::sf::Out<ams::sf::SharedPointer<ams::ssl::sf::ISslConnection>> out) {
+    TracePki(m_client_info, m_context_id, "CreateConnection", "phase=begin");
     Service out_tmp;
-    R_TRY(sslContextForSystemCreateConnection_sfMitm(m_forward_service.get(),
-                                                     std::addressof(out_tmp)));
+    const Result rc = sslContextForSystemCreateConnection_sfMitm(m_forward_service.get(), &out_tmp);
+    TracePki(m_client_info, m_context_id, "CreateConnection", "forward_result=0x%08X", rc.GetValue());
+    R_TRY(rc);
 
     PcapFileWriter *writter = nullptr;
 
@@ -81,7 +84,7 @@ Result SslContextForSystemImpl::CreateConnection(
 
     out.SetValue(
         ams::sf::CreateSharedObjectEmplaced<ISslConnection, SslConnectionImpl>(
-            std::make_unique<::Service>(out_tmp), m_client_info, writter),
+            std::make_unique<::Service>(out_tmp), m_client_info, writter, m_context_id),
         target_object_id);
 
     R_SUCCEED();
@@ -124,19 +127,27 @@ Result SslContextForSystemImpl::RemoveServerPki(u64 certificate_id) {
 }
 
 Result SslContextForSystemImpl::RemoveClientPki(u64 certificate_id) {
-    R_TRY(sslContextForSystemRemoveClientPki_sfMitm(m_forward_service.get(),
-                                                    certificate_id));
-
-    R_SUCCEED();
+    const Result rc = sslContextForSystemRemoveClientPki_sfMitm(m_forward_service.get(), certificate_id);
+    TracePki(m_client_info, m_context_id, "RemoveClientPki", "pki_id=%llu forward_result=0x%08X",
+             static_cast<unsigned long long>(certificate_id), rc.GetValue());
+    return rc;
 }
 
-Result SslContextForSystemImpl::RegisterInternalPki(
-    const ams::ssl::sf::InternalPki &pki, ams::sf::Out<u64> certificate_id) {
-    R_TRY(sslContextForSystemRegisterInternalPki_sfMitm(
-        m_forward_service.get(), static_cast<u32>(pki),
-        certificate_id.GetPointer()));
-
-    R_SUCCEED();
+Result SslContextForSystemImpl::RegisterInternalPki(const ams::ssl::sf::InternalPki &pki,
+                                             ams::sf::Out<u64> certificate_id) {
+    const u32 type = static_cast<u32>(pki);
+    TracePki(m_client_info, m_context_id, "RegisterInternalPki", "phase=begin type=%u(%s)",
+             type, type == 1 ? "DeviceClientCertDefault" : (type == 0 ? "None" : "Unknown"));
+    const Result rc = sslContextForSystemRegisterInternalPki_sfMitm(
+        m_forward_service.get(), type, certificate_id.GetPointer());
+    if (R_SUCCEEDED(rc)) {
+        TracePki(m_client_info, m_context_id, "RegisterInternalPki", "type=%u forward_result=0x%08X pki_id=%llu",
+                 type, rc.GetValue(), static_cast<unsigned long long>(certificate_id.GetValue()));
+    } else {
+        TracePki(m_client_info, m_context_id, "RegisterInternalPki", "type=%u forward_result=0x%08X",
+                 type, rc.GetValue());
+    }
+    return rc;
 }
 
 Result SslContextForSystemImpl::AddPolicyOid(
@@ -189,9 +200,11 @@ Result SslContextForSystemImpl::GeneratePrivateKeyAndCert(
 
 Result SslContextForSystemImpl::CreateConnectionEx(
     ams::sf::Out<ams::sf::SharedPointer<ams::ssl::sf::ISslConnection>> out) {
+    TracePki(m_client_info, m_context_id, "CreateConnectionEx", "phase=begin");
     Service out_tmp;
-    R_TRY(sslContextForSystemCreateConnectionEx_sfMitm(
-        m_forward_service.get(), std::addressof(out_tmp)));
+    const Result rc = sslContextForSystemCreateConnectionEx_sfMitm(m_forward_service.get(), &out_tmp);
+    TracePki(m_client_info, m_context_id, "CreateConnectionEx", "forward_result=0x%08X", rc.GetValue());
+    R_TRY(rc);
 
     PcapFileWriter *writter = nullptr;
 
@@ -247,7 +260,7 @@ Result SslContextForSystemImpl::CreateConnectionEx(
 
     out.SetValue(
         ams::sf::CreateSharedObjectEmplaced<ISslConnection, SslConnectionImpl>(
-            std::make_unique<::Service>(out_tmp), m_client_info, writter),
+            std::make_unique<::Service>(out_tmp), m_client_info, writter, m_context_id),
         target_object_id);
 
     R_SUCCEED();

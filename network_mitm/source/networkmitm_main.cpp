@@ -16,6 +16,7 @@
 #include "networkmitm_ssl_for_system_service_impl.hpp"
 #include "networkmitm_ssl_service_impl.hpp"
 #include "networkmitm_utils.hpp"
+#include "networkmitm_pki_trace.hpp"
 #include <stratosphere.hpp>
 
 namespace ams {
@@ -62,6 +63,7 @@ void FinalizeFsHeap() { lmem::DestroyExpHeap(g_fs_heap_handle); }
 namespace {
 static fs::FileHandle g_logger_file;
 static s64 g_logger_file_ofs;
+static bool g_logger_ready = false;
 constinit os::SdkMutex g_logger_file_mutex;
 
 void LogFileLogObserver(const diag::LogMetaData &meta,
@@ -70,9 +72,9 @@ void LogFileLogObserver(const diag::LogMetaData &meta,
 
     std::scoped_lock lk(g_logger_file_mutex);
 
-    R_ABORT_UNLESS(fs::WriteFile(g_logger_file, g_logger_file_ofs, body.message,
-                                 body.message_size, fs::WriteOption::Flush));
-    g_logger_file_ofs += body.message_size;
+    if (R_SUCCEEDED(fs::WriteFile(g_logger_file, g_logger_file_ofs, body.message,
+                                  body.message_size, fs::WriteOption::Flush)))
+        g_logger_file_ofs += body.message_size;
 }
 
 void InitializeFileLogger() {
@@ -83,13 +85,13 @@ void InitializeFileLogger() {
 
     auto result = fs::HasDirectory(&dir_exists, path);
     if (R_FAILED(result)) {
-        AMS_ABORT("Cannot access the sdcard!");
+        return;
     }
 
     if (!dir_exists) {
         result = fs::CreateDirectory(path);
         if (R_FAILED(result)) {
-            AMS_ABORT("Cannot create logs directory on the scard!");
+            return;
         }
     }
 
@@ -99,11 +101,11 @@ void InitializeFileLogger() {
 
     result = fs::CreateFile(path, 0);
     if (R_FAILED(result) && !fs::ResultPathAlreadyExists::Includes(result)) {
-        AMS_ABORT("Cannot create log file!");
+        return;
     }
 
-    R_ABORT_UNLESS(
-        fs::OpenFile(std::addressof(g_logger_file), path, fs::OpenMode_All));
+    if (R_FAILED(fs::OpenFile(&g_logger_file, path, fs::OpenMode_All))) return;
+    g_logger_ready = true;
 
     g_logger_file_ofs = 0;
 
@@ -113,7 +115,7 @@ void InitializeFileLogger() {
 void FinalizeFileLogger() {
     diag::impl::ResetDefaultLogObserver();
 
-    fs::CloseFile(g_logger_file);
+    if (g_logger_ready) fs::CloseFile(g_logger_file);
 }
 } // namespace
 
@@ -190,14 +192,8 @@ bool ShouldSslMitm() {
 }
 
 bool ShouldDumpSslTraffic() {
-    u8 en = 0;
-    if (settings::fwdbg::GetSettingsItemValue(
-            std::addressof(en), sizeof(en), "network_mitm",
-            "should_dump_ssl_traffic") == sizeof(en)) {
-        return (en != 0);
-    }
-
-    return true;
+    // This diagnostic fork never writes decrypted traffic or credentials.
+    return false;
 }
 
 bool ShouldMitmAll() {
@@ -385,9 +381,11 @@ void Initialize(bool should_dump_ssl_traffic, bool should_mitm_all,
                 bool should_disable_ssl_verification) {
     g_ca_certificate_public_key_pem = MakeSpan(
         g_ca_public_key_storage_pem, sizeof(g_ca_public_key_storage_pem));
-    g_should_dump_ssl_traffic = should_dump_ssl_traffic;
+    InitializePkiTrace();
+    // Diagnostic mode must not capture credentials or change server trust.
+    g_should_dump_ssl_traffic = should_dump_ssl_traffic && !g_trace_internal_pki;
     g_should_mitm_all = should_mitm_all;
-    g_should_disable_ssl_verification = should_disable_ssl_verification;
+    g_should_disable_ssl_verification = should_disable_ssl_verification && !g_trace_internal_pki;
     g_link_type = PcapLinkType::User;
 
     char pcap_link_type[16];
@@ -404,6 +402,8 @@ void Initialize(bool should_dump_ssl_traffic, bool should_mitm_all,
             g_link_type = PcapLinkType::Ethernet;
         }
     }
+
+    if (g_trace_internal_pki) return;
 
     char setting_path[ams::fs::EntryNameLengthMax + 1];
     char custom_cert_path[ams::fs::EntryNameLengthMax + 1];
@@ -477,7 +477,7 @@ void Main() {
         AMS_LOG("MITM enabled on all users\n");
     }
 
-    if (should_disable_ssl_verification) {
+    if (g_should_disable_ssl_verification) {
         AMS_LOG("SSL verification will be forcefully disabled\n");
     }
 

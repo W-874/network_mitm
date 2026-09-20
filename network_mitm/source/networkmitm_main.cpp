@@ -14,7 +14,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "networkmitm_ssl_for_system_service_impl.hpp"
-#include "networkmitm_ssl_service_impl.hpp"
 #include "networkmitm_utils.hpp"
 #include "networkmitm_pki_trace.hpp"
 #include "networkmitm_device_pki.hpp"
@@ -237,32 +236,33 @@ bool g_should_disable_ssl_verification;
 PcapLinkType g_link_type;
 
 enum PortIndex {
-    PortIndex_SslMitm,
     PortIndex_SslSystemMitm,
     PortIndex_Count,
 };
 
-constexpr sm::ServiceName MitmSslServiceName = sm::ServiceName::Encode("ssl");
 constexpr sm::ServiceName MitmSslSystemServiceName =
     sm::ServiceName::Encode("ssl:s");
 
 struct ServerOptions {
-    // FIXME: Use real values from SSL after reverse
+    // Preserve the upstream per-session ABI capacity. Only the number of
+    // concurrently stored sessions/objects is bounded for this NIM experiment.
     static constexpr size_t PointerBufferSize = 0x10000;
-    static constexpr size_t MaxDomains = 0x40;
-    static constexpr size_t MaxDomainObjects = 0x4000;
+    static constexpr size_t MaxDomains = 16;
+    static constexpr size_t MaxDomainObjects = 256;
     static constexpr bool CanDeferInvokeRequest = false;
     static constexpr bool CanManageMitmServers = true;
 };
 
+constexpr size_t MaxSessions = 16;
+
 class ServerManager final
-    : public ams::sf::hipc::ServerManager<PortIndex_Count, ServerOptions> {
+    : public ams::sf::hipc::ServerManager<PortIndex_Count, ServerOptions, MaxSessions> {
   private:
     virtual Result OnNeedsToAccept(int port_index, Server *server) override;
 };
 
-ServerManager g_server_manager_for_user;
-ServerManager g_server_manager_for_system;
+static_assert(sizeof(ServerManager) < 1152_KB, "NIM server static budget exceeded");
+ServerManager g_server_manager;
 
 Result ServerManager::OnNeedsToAccept(int port_index, Server *server) {
     AMS_LOG("OnNeedsToAccept\n");
@@ -274,18 +274,10 @@ Result ServerManager::OnNeedsToAccept(int port_index, Server *server) {
                                    std::addressof(client_info));
 
     const auto pki_options = GetClientPkiOptions(client_info.program_id);
+    AMS_LOG("forward_pointer_buffer_size=%u\n", static_cast<unsigned>(forward_service->pointer_buffer_size));
+    TraceResourceSnapshot("accept");
 
     switch (port_index) {
-    case PortIndex_SslMitm:
-        AMS_LOG("AcceptMitmImpl SSL titleid: %lx\n",
-                (u64)client_info.program_id);
-        R_RETURN(this->AcceptMitmImpl(
-            server,
-            ams::sf::CreateSharedObjectEmplaced<ISslService, SslServiceImpl>(
-                decltype(forward_service)(forward_service), client_info,
-                g_should_dump_ssl_traffic, g_link_type,
-                g_ca_certificate_public_key_der, pki_options),
-            forward_service));
     case PortIndex_SslSystemMitm:
         AMS_LOG("AcceptMitmImpl SSL SYSTEM titleid: %lx\n",
                 (u64)client_info.program_id);
@@ -301,7 +293,7 @@ Result ServerManager::OnNeedsToAccept(int port_index, Server *server) {
     }
 }
 
-constexpr size_t TotalThreads = 5;
+constexpr size_t TotalThreads = 2;
 static_assert(TotalThreads >= 1, "TotalThreads");
 constexpr size_t NumExtraThreads = TotalThreads - 1;
 constexpr size_t ThreadStackSize = 0x8000;
@@ -310,57 +302,27 @@ alignas(os::MemoryPageSize) u8
 
 os::ThreadType g_extra_threads[NumExtraThreads];
 
-void LoopServerThreadForUser(void *) {
-    /* Loop forever, servicing our user service. */
-    g_server_manager_for_user.LoopProcess();
-}
-
-void LoopServerThreadForSystem(void *) {
-    /* Loop forever, servicing our system service. */
-    g_server_manager_for_system.LoopProcess();
+void LoopServerThread(void *) {
+    g_server_manager.LoopProcess();
 }
 
 void ProcessForServerOnAllThreads() {
-    bool has_system_manager = hos::GetVersion() >= hos::Version_15_0_0;
-
-    /* Initialize threads. */
-    if constexpr (NumExtraThreads > 0) {
-        const s32 priority =
-            os::GetThreadCurrentPriority(os::GetCurrentThread());
-        for (size_t i = 0; i < NumExtraThreads; i++) {
-            if (has_system_manager) {
-                R_ABORT_UNLESS(os::CreateThread(
-                    g_extra_threads + i,
-                    i % 2 ? LoopServerThreadForUser : LoopServerThreadForSystem,
-                    nullptr, g_extra_thread_stacks[i], ThreadStackSize,
-                    priority));
-            } else {
-                R_ABORT_UNLESS(os::CreateThread(
-                    g_extra_threads + i, LoopServerThreadForUser, nullptr,
-                    g_extra_thread_stacks[i], ThreadStackSize, priority));
-            }
-        }
+    // A second worker permits independent sessions to progress while an SSL
+    // operation blocks. If the shared thread quota is exhausted, the main
+    // thread can still serve requests; worker creation must not fatal.
+    bool worker_started = false;
+    const auto priority = os::GetThreadCurrentPriority(os::GetCurrentThread());
+    const Result rc = os::CreateThread(g_extra_threads, LoopServerThread, nullptr,
+                                      g_extra_thread_stacks[0], ThreadStackSize, priority);
+    if (R_SUCCEEDED(rc)) {
+        os::StartThread(g_extra_threads);
+        worker_started = true;
+    } else {
+        AMS_LOG("extra_worker_disabled result=0x%08X\n", rc.GetValue());
     }
-
-    /* Start extra threads. */
-    if constexpr (NumExtraThreads > 0) {
-        for (size_t i = 0; i < NumExtraThreads; i++) {
-            os::StartThread(g_extra_threads + i);
-        }
-    }
-
-    /* Loop this thread. */
-    if (has_system_manager)
-        LoopServerThreadForSystem(nullptr);
-    else
-        LoopServerThreadForUser(nullptr);
-
-    /* Wait for extra threads to finish. */
-    if constexpr (NumExtraThreads > 0) {
-        for (size_t i = 0; i < NumExtraThreads; i++) {
-            os::WaitThread(g_extra_threads + i);
-        }
-    }
+    TraceResourceSnapshot("serving");
+    LoopServerThread(nullptr);
+    if (worker_started) os::WaitThread(g_extra_threads);
 }
 
 Result ReadFileToBuffer(const char *path, void *buffer, size_t buffer_size,
@@ -425,8 +387,8 @@ void Main() {
 
     if (g_targeted_device_pki_mode) {
         AMS_LOG("Targeted device PKI mode: only mitm_program_ids; should_mitm_all ignored\n");
-    } else if (should_mitm_all) {
-        AMS_LOG("Legacy root MITM enabled; device PKI experiment disabled\n");
+    } else {
+        AMS_LOG("Targeted mode disabled: no clients accepted\n");
     }
 
     if (g_should_disable_ssl_verification) {
@@ -437,16 +399,16 @@ void Main() {
         AMS_LOG("SSL service traffic dumping disabled\n");
     }
 
-    /* Create mitm servers. */
-    R_ABORT_UNLESS(
-        (g_server_manager_for_user.RegisterMitmServer<SslServiceImpl>(
-            PortIndex_SslMitm, MitmSslServiceName)));
-
-    if (hos::GetVersion() >= hos::Version_15_0_0) {
-        R_ABORT_UNLESS(
-            (g_server_manager_for_system.RegisterMitmServer<SslServiceForSystemImpl>(
-                PortIndex_SslSystemMitm, MitmSslSystemServiceName)));
-    }
+    // The observed caller uses ssl:s. Do not register or reserve ordinary ssl.
+    AMS_LOG("resource-v3 port=ssl:s sessions=%llu domains=%llu objects=%llu workers=%llu manager_bytes=%llu\n",
+        static_cast<unsigned long long>(MaxSessions),
+        static_cast<unsigned long long>(ServerOptions::MaxDomains),
+        static_cast<unsigned long long>(ServerOptions::MaxDomainObjects),
+        static_cast<unsigned long long>(TotalThreads),
+        static_cast<unsigned long long>(sizeof(ServerManager)));
+    TraceResourceSnapshot("before_register");
+    R_ABORT_UNLESS((g_server_manager.RegisterMitmServer<SslServiceForSystemImpl>(
+        PortIndex_SslSystemMitm, MitmSslSystemServiceName)));
 
     /* Loop forever, servicing our services. */
     AMS_LOG("Accepting requests.\n");

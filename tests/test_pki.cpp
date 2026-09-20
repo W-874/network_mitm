@@ -163,7 +163,7 @@ void TestRouting() {
     assert(ParsePrograms(p.fallback_programs, nim, sizeof(nim)));
     for (bool system : {false, true}) {
         for (bool legacy_all : {false, true}) {
-            assert(p.ShouldMitm(Nim, system, false, legacy_all));
+            assert(p.ShouldMitm(Nim, system, false, legacy_all) == system);
             for (auto program : std::array<std::uint64_t, 4>{Am, Game, 0x010000000000000FULL, 0x0100000000000033ULL}) {
                 assert(!p.ShouldMitm(program, system, program == Game, legacy_all));
                 const auto options = p.Options(program);
@@ -182,8 +182,8 @@ void TestRouting() {
     assert(!p.Options(Nim).fallback && !p.Options(Am).fallback); // both lists required
     p.targeted = false;
     assert(!p.ShouldMitm(Nim, true, false, false));
-    assert(p.ShouldMitm(Nim, true, false, true));
-    assert(p.ShouldMitm(Game, false, true, false));
+    assert(!p.ShouldMitm(Nim, true, false, true));
+    assert(!p.ShouldMitm(Game, false, true, false));
     assert(!p.ShouldMitm(Game, true, true, false));
     assert(!p.Options(Nim).trace && !p.Options(Nim).fallback);
     // An additional program can be explicitly configured without changing code.
@@ -230,5 +230,5 @@ void TestObservedErrorTrigger() {
 }
 int main() {
     TestPolicy(); TestSynthetic(); TestRouting(); TestObservedErrorTrigger();
-    std::cout << "PASS: targeted routing on both ports, per-client options, exact 0x167B trigger, original-success preservation, error propagation, allocation/length failures, key wiping\n";
+    std::cout << "PASS: ssl:s-only routing, legacy broad mode rejected, per-client options, exact 0x167B trigger, original-success preservation, error propagation, allocation/length failures, key wiping\n";
 }

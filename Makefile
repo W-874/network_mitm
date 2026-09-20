@@ -27,7 +27,6 @@ pack: build
 	@cp network_mitm/out/nintendo_nx_arm64_armv8a/release/network_mitm.nsp $(TITLE_DIR)/exefs.nsp
 	@touch $(TITLE_DIR)/flags/boot2.flag
 	@rm -f $(TITLE_DIR)/mitm.lst
-	@echo "ssl" >> $(TITLE_DIR)/mitm.lst
 	@echo "ssl:s" >> $(TITLE_DIR)/mitm.lst
 
 dist: pack

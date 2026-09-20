@@ -104,6 +104,7 @@ nextendo::pki::ClientOptions GetClientPkiOptions(ncm::ProgramId program_id) {
 Result RegisterSystemClientPki(Service *context, const sm::MitmProcessInfo &client,
                               u64 context_id, nextendo::pki::ClientOptions options,
                               u32 type, u64 *out_id) {
+    if (options.trace) TraceResourceSnapshot("before_pki");
     SslBackend backend{context, client, context_id, options.trace};
     u64 real_id = 0;
     const Result rc = nextendo::pki::RegisterAfterOriginalFailure(backend, options.fallback, type, real_id);
@@ -112,6 +113,7 @@ Result RegisterSystemClientPki(Service *context, const sm::MitmProcessInfo &clie
     if (R_SUCCEEDED(rc)) {
         TracePki(options.trace, client, context_id, "ClientPki", "pki_id=%llu", static_cast<unsigned long long>(real_id));
     }
+    if (options.trace) TraceResourceSnapshot("after_pki");
     return rc;
 }
 }

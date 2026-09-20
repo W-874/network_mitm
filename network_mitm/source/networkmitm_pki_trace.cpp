@@ -11,7 +11,7 @@ std::atomic<u64> g_next_context{1};
 constinit os::SdkMutex g_trace_mutex;
 fs::FileHandle g_trace_file;
 s64 g_trace_offset = 0;
-bool g_trace_ready = false;
+std::atomic<bool> g_trace_ready{false};
 constexpr s64 MaxTraceBytes = 8 * 1024 * 1024;
 
 void Append(const char *line, size_t size) {
@@ -71,4 +71,34 @@ void TracePki(bool enabled, const sm::MitmProcessInfo &client, u64 context_id,
         static_cast<unsigned long long>(context_id), event, detail);
     Append(line, std::strlen(line));
 }
+void TraceResourceSnapshot(const char *stage) {
+    if (!g_trace_ready) return;
+    const sm::MitmProcessInfo self{};
+    u64 value = 0;
+    const Result opened = svc::GetInfo(&value, svc::InfoType_ResourceLimit, svc::InvalidHandle, 0);
+    if (R_FAILED(opened)) {
+        TracePki(true, self, 0, "Resources", "stage=%s query_result=0x%08X", stage, opened.GetValue());
+        return;
+    }
+    const auto handle = static_cast<svc::Handle>(value);
+    if (handle == svc::InvalidHandle) return;
+    // This is a newly returned handle, not a service session or a global handle.
+    ON_SCOPE_EXIT { (void)svc::CloseHandle(handle); };
+    constexpr const char *Names[] = {"memory_bytes", "threads", "events", "transfer_memories", "sessions"};
+    static_assert((sizeof(Names) / sizeof(Names[0])) == svc::LimitableResource_Count);
+    for (u32 i = 0; i < svc::LimitableResource_Count; ++i) {
+        s64 used = 0, limit = 0;
+        const auto resource = static_cast<svc::LimitableResource>(i);
+        const Result urc = svc::GetResourceLimitCurrentValue(&used, handle, resource);
+        const Result lrc = svc::GetResourceLimitLimitValue(&limit, handle, resource);
+        if (R_SUCCEEDED(urc) && R_SUCCEEDED(lrc)) {
+            TracePki(true, self, 0, "Resources", "stage=%s scope=self_resource_group kind=%s used=%lld limit=%lld remaining=%lld",
+                     stage, Names[i], static_cast<long long>(used), static_cast<long long>(limit), static_cast<long long>(limit-used));
+        } else {
+            TracePki(true, self, 0, "Resources", "stage=%s kind=%s used_result=0x%08X limit_result=0x%08X",
+                     stage, Names[i], urc.GetValue(), lrc.GetValue());
+        }
+    }
+}
+
 }

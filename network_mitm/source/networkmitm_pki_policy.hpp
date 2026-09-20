@@ -35,8 +35,10 @@ struct RoutingPolicy {
     bool Targets(std::uint64_t program) const { return mitm_programs.Contains(program); }
     bool ShouldMitm(std::uint64_t program, bool system_service, bool application,
                     bool legacy_mitm_all) const {
-        if (targeted) return Targets(program);
-        return legacy_mitm_all || (!system_service && application);
+        (void)application;
+        (void)legacy_mitm_all;
+        // This resource-bounded build has no legacy broad-interception mode.
+        return targeted && system_service && Targets(program);
     }
     ClientOptions Options(std::uint64_t program) const {
         if (!targeted || !Targets(program)) return {};

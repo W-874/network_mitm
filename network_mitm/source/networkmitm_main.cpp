@@ -106,6 +106,12 @@ void InitializeFileLogger() {
     }
 
     if (R_FAILED(fs::OpenFile(&g_logger_file, path, fs::OpenMode_All))) return;
+    // This log describes only the current boot. Overwriting from offset zero
+    // without truncation leaves v1's unrelated clients in the old file tail.
+    if (R_FAILED(fs::SetFileSize(g_logger_file, 0))) {
+        fs::CloseFile(g_logger_file);
+        return;
+    }
     g_logger_ready = true;
 
     g_logger_file_ofs = 0;

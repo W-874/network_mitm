@@ -157,13 +157,11 @@ void InitializeSystemModule() {
     /* Initialize settings */
     R_ABORT_UNLESS((Result)::setsysInitialize());
 
-    /* Initialize time for file dating :3 */
-    R_ABORT_UNLESS((Result)::timeInitialize());
+    // Metadata uses the monotonic system tick; PCAP wall-clock dating is off.
+    // Do not open unused time-service sessions during system startup.
 }
 
 void FinalizeSystemModule() {
-    timeExit();
-
     setsysExit();
 
     FinalizeFileLogger();

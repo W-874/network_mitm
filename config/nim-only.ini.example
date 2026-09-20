@@ -1,4 +1,4 @@
-; V2: merge into the existing [network_mitm] section; do not replace the whole file.
+; Resource-v3 (ssl:s only): merge into the existing [network_mitm] section; do not replace the whole file.
 ; NIM was observed twice in the user's real command-8 failure logs.
 [network_mitm]
 enable_ssl = u8!0x1

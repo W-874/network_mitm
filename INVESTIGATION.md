@@ -1,6 +1,10 @@
+# resource-v3 更新
+
+本文件保留最初接口研究。当前修复和精确AM反汇编依据以 CRASH-ANALYSIS.md 为准：仅注册ssl:s，单管理器16会话/16domain/256对象、2工作线程；targeted=false不再回到legacy广泛接管。原PKI shims和ABI不变。
+
 # SSL Client-PKI investigation — NIM-only v2
 
-Updated 2026-09-20. Target: HOS22.5.0 / Atmosphère1.11.2 / emuMMC. V1 instrumentation produced useful NIM metadata but booted into AM fatal. V2 is built and host-tested; its runtime behavior is not yet verified.
+Updated 2026-09-20. Target: HOS22.5.0 / Atmosphère1.11.2 / emuMMC. V1 instrumentation produced useful NIM metadata but booted into AM fatal. V2 real console logs confirmed PKI generation/import success, but AM startup fatal persisted. V3 is the current resource repair.
 
 ## Feasibility and evidence
 

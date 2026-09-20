@@ -18,9 +18,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--sd', type=Path, default=ROOT / 'out/sd')
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--variant', choices=['nim-only-v2'], default='nim-only-v2')
+    parser.add_argument('--variant', choices=['resource-v3'], default='resource-v3')
     parser.add_argument('--source-commit', required=True)
     args = parser.parse_args()
+    subprocess.run(['python3', str(ROOT/'tools/check-binary.py'), '--sd', str(args.sd)], cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
     title = re.search(r'^TITLE_ID\s*:=\s*([0-9A-Fa-f]{16})$', (ROOT/'Makefile').read_text(), re.M)[1]
     npdm_title = json.loads((ROOT/'network_mitm/network_mitm.json').read_text())['title_id']
     assert int(title,16) == int(npdm_title,16), 'Makefile / NPDM program ID mismatch'
@@ -29,8 +30,8 @@ def main():
     for leaf in ['exefs.nsp','mitm.lst','flags/boot2.flag']:
         rel = contents/leaf
         files[str(rel)] = (args.sd/rel).read_bytes()
-    assert files[str(contents/'mitm.lst')].splitlines() == [b'ssl', b'ssl:s']
-    for name in ['README.md','INVESTIGATION.md','README-TEST.md','README-ROLLBACK.md','BUILD-REPORT.md','EVIDENCE-v2.md','LICENSE']:
+    assert files[str(contents/'mitm.lst')].splitlines() == [b'ssl:s']
+    for name in ['README.md','INVESTIGATION.md','README-TEST.md','README-ROLLBACK.md','BUILD-REPORT.md','EVIDENCE-v2.md','CRASH-ANALYSIS.md','LICENSE']:
         files['network_mitm/docs/'+name] = (ROOT/name).read_bytes()
     files['network_mitm/docs/nim-only.ini.example'] = (ROOT/'config/nim-only.ini.example').read_bytes()
     # The patch must match the actual binary's recorded source revision.
@@ -50,7 +51,9 @@ def main():
         'recommended_mitm_program_ids': ['0100000000000025'],
         'recommended_fallback_program_ids': ['0100000000000025'],
         'original_result_trigger': '0x0000167B',
-        'scope': 'ISslContextForSystem only',
+        'scope': 'ssl:s / ISslContextForSystem only',
+        'mitm_ports': ['ssl:s'],
+        'server_resources': {'managers': 1, 'sessions': 16, 'domains': 16, 'objects': 256, 'workers': 2, 'pointer_bytes_per_session': 65536},
         'files': {name: hashlib.sha256(data).hexdigest() for name,data in files.items()},
     }
     files['network_mitm/docs/BUILD-MANIFEST.json'] = (json.dumps(manifest,indent=2)+'\n').encode()

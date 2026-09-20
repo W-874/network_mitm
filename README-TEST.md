@@ -1,17 +1,13 @@
-# NIM-only v2：安装与结果判读
+# resource-v3：安装和验证
 
-**停止使用 v1 的全系统纯追踪包及旧实验包。**本次直接交付 NIM 定向 fallback，不再要求重复全系统追踪。v2 已交叉编译并通过主机测试，尚未实机验证启动或账户绑定。
+这是针对启动资源负担的修复版。v2 实机已经证明 NIM 的临时 PKI 生成、导入成功；本轮保留这条路径，修复过大的固定资源预留。AM 对应固件已核对：失败发生在请求启动 GRC 时，详见 CRASH-ANALYSIS.md。v3 尚未实机验证启动成功。
 
-## 已有实机证据
+## 安装
 
-提供的 internal_pki.log 两次启动都记录：program=0100000000000025、CreateContextForSystem 成功、RegisterInternalPki type=1 返回 0x167B。v1 同期发生 am / 0100000000000023 的 0x10801 User Break。v2 只针对前述 NIM 调用；现有日志尚不能证明全系统 MITM 是 AM 崩溃的唯一原因，也不能证明这个开机阶段的 PKI 错误就是手动关联账户 2123-0011 的唯一原因。
-
-## 安装一次定向版本
-
-1. 关机，备份 `/atmosphere/contents/4200000000000666/`（若还存在）和 `/atmosphere/config/system_settings.ini`。保存已有日志。
-2. 保持 emuMMC、Prelude Nextendo mode 和现有 DNS/信任配置。先完成 Prelude 配置，再装 ZIP；此 Prelude 版本重新部署时会清理 network_mitm。不要切换 Nintendo mode，不修改 hosts、CA 或 IPS。
-3. 把 `network_mitm-nextendo-nim-only-v2.zip` 解压并合并到 SD 根目录，替换同路径的旧 exefs.nsp。模块目录仍是 upstream Makefile/NPDM 指定的 `atmosphere/contents/4200000000000666/`，包含 exefs.nsp、mitm.lst 和 flags/boot2.flag。
-4. 将下列键合并到现有 `[network_mitm]` 段中。只保留一个同名段和每个键的一份定义；不要用下面内容覆盖整份 system_settings.ini。其余配置（包括已有 account.daemon 设置）保留。
+1. 关机，备份现有4200000000000666模块目录、system_settings.ini和本轮日志。
+2. 将 network_mitm-nextendo-resource-v3.zip 合并到SD根目录。**必须同时替换 exefs.nsp 和 mitm.lst**，不要只复制NSP。路径仍来自 upstream Makefile/NPDM：`/atmosphere/contents/4200000000000666/`。
+3. 打开该目录的mitm.lst，应该只有一行 `ssl:s`，不再有 `ssl`。保留 flags/boot2.flag。
+4. 你本次提交的v2配置已经正确，可以直接保留。下面是完整的相关段落，供核对；不要覆盖其他设置：
 
 ```ini
 [network_mitm]
@@ -26,60 +22,41 @@ should_dump_ssl_traffic = u8!0x0
 should_disable_ssl_verification = u8!0x0
 ```
 
-`should_mitm_all` 在 targeted mode 下完全被忽略；残留值1也不能扩大接管范围。不要添加 `custom_ca_public_cert`。本版本不抓 PCAP、不加载自定义 CA、不覆盖验证选项。
+5. 保持 emuMMC、Prelude Nextendo模式及当前hosts/信任配置。不要重配Prelude、增加CA、关闭验证或添加其他目标。Prelude重新部署可能清理本模块；如需部署，顺序是Prelude在前、本ZIP在后。
+6. 完整重启。先确认能进入HOME，再尝试一次账户关联。不要再安装全系统追踪版。
 
-代码的默认值仍是 fallback=false、两个列表为空；targeted mode 默认 true。漏配新键会导致不接管任何目标，而不会重新启用 v1 的全系统追踪。上面的实际测试配置显式启用 fallback，并且只填入已经在实机日志出现的 NIM ID。
+## 日志
 
-5. 完整重启 emuMMC。先看能否进入 HOME；能正常进入后，再尝试一次账户关联。不需要再次安装纯追踪版。
-
-## 预期日志
-
-只需收集 `/network_mitm/internal_pki.log` 与 `/atmosphere/logs/network_mitm_observer.log`。保留当前 DNS debug 日志以便关联时间。internal_pki.log 追加记录，并以独立 boot/build 标记区分；observer 每次启动会清空旧内容，所以重启前请先保存。时间为单调时钟毫秒，ctx 编号在每次启动后重置。
-
-启动配置记录应显示：
+`/atmosphere/logs/network_mitm_observer.log` 每次启动清空，先保存旧文件。新版本应有：
 
 ```text
-DevicePkiPolicy targeted=1 mitm_valid=1 mitm_count=1 fallback_enabled=1 fallback_valid=1 fallback_count=1 trigger=0x0000167B
+resource-v3 port=ssl:s sessions=16 domains=16 objects=256 workers=2 manager_bytes=...
+AcceptMitmImpl SSL SYSTEM titleid: 100000000000025
 ```
 
-observer 的 `AcceptMitmImpl SSL... titleid` 应只有 NIM（可能显示为不补前导零的 `100000000000025`）。其他进程不进入本模块；日志 program=0、ctx=0 的 DevicePkiPolicy 是配置标记，不是接管了额外客户端。
+普通ssl没有注册；should_mitm_all即使残留1也不会扩大范围。targeted=0会拒绝所有客户端，不恢复旧模式。
 
-成功路径示意（不是实机已成功的记录）：
+`/network_mitm/internal_pki.log` 继续追加，以build和boot标记区分。保留NIM PKI日志，并新增：
 
 ```text
-program=0100000000000025 ... CreateContextForSystem forward_result=0x00000000
-program=0100000000000025 ... RegisterInternalPki type=1 forward_result=0x0000167B
-program=0100000000000025 ... fallback_generate result=0x00000000 origin=ssl_ipc
-program=0100000000000025 ... fallback_import result=0x00000000 origin=ssl_ipc
-program=0100000000000025 ... RegisterInternalPki phase=complete result=0x00000000
-program=0100000000000025 ... ClientPki pki_id=真实ID
+Resources stage=before_register scope=self_resource_group kind=memory_bytes used=... limit=... remaining=...
+Resources stage=serving scope=self_resource_group kind=threads used=... limit=... remaining=...
+Resources stage=after_pki scope=self_resource_group kind=sessions used=... limit=... remaining=...
 ```
 
-此版先调用一次原 command8。原调用成功则返回原 ID、不生成证书；其他错误及其他 enum 均原样返回。仅选中目标的 system context、type=1、原 Result=0x167B 才执行 command13→12。Generate/Import 错误原样返回；没有假成功、fake ID、再次重试原身份或换 context。
+也记录events、transfer_memories。memory_bytes单位字节，其余是数量。这是模块所属资源组的非原子快照，不是AM私有堆大小；不修改系统额度。查询失败只记录Result。program=0/ctx=0是诊断记录，不是接管了额外程序。
 
-日志只保留 context 创建和 PKI 的 Result metadata。不再记录 SetInterfaceVersion、CreateConnection、DoHandshake 或 RemoveClientPki。后者始终执行原始删除；连接 wrapper 只做透明转发。没有这些日志不代表没有发生对应调用。
+保留的成功路径：原RegisterInternalPki type1返回0x167B → fallback_generate=0 → fallback_import=0 →真实ClientPki ID。原调用成功直接返回原ID；其他错误原样返回。Generate/Import失败不伪造成功，也不重试原身份。RemoveClientPki原样forward。证书CN仍是Nextendo Temporary Client，私钥只在内存且退出时清零。
 
-证书参数为 RSA2048、65537、CN="Nextendo Temporary Client"；系统生成 DER 后按实际长度导入。暂存内存每条退出路径均清零，私钥不写 SD。失败的原注册是否留下阻止导入的 context 状态，仍要看实机 Import Result；不为此提前编写绕过。
+## 容量和判定
 
-日志上限8 MiB，达到上限停止追加；SD写失败放弃记录而不改 SSL Result。没有日志时先检查新配置、模块文件和最新 boot 标记，不要扩大 allowlist。
+本版针对已观察到的单个NIM客户端，预留16个同时存在的session（包括非domain子对象）、16个domain、256个domain对象。不是可扩展到所有系统程序的通用版本；未经证据和容量审查不要扩大allowlist。每个session的64KiB IPC缓冲区不变。源码有管理器大小检查，打包有NSO BSS<3MiB及对比v2节省至少8MiB的检查。
 
-## 分层判断
+- 首先：正常进入HOME，且仅NIM被接受。
+- PKI创建/导入：v2已实机成功；v3应保持此结果。
+- DNS：关联动作出现对应dauth/accounts/baas/aauth查询才算推进；启动hosts列表不算实际查询。
+- Nextendo响应、新错误码和最终绑定结果分别记录，不混成一个成功判定。
 
-| 层级 | 判定 |
-|---|---|
-| 启动门槛 | 能正常进入系统，且接管客户端只有 NIM；v2 尚未验证 |
-| Level 1 | NIM system context 的 type=1 原调用0x167B：已有两次开机日志证据 |
-| Level 2 | Generate/Import 成功并返回真实 ID；还需实机验证 |
-| Level 3 | 本次相关流程出现新的 dauth/accounts/baas/aauth DNS；需结合时间和缓存判断 |
-| Level 4 | Nextendo 页面或 TLS/API 有响应，即使出现新错误码也有价值 |
-| Level 5 | Nextendo 账户绑定完成 |
+若仍fatal，保存新fatal/crash报告、两个模块日志与原有DNS日志，按README-ROLLBACK移走整个模块目录。新资源计数和已经定位的GRC启动调用点将限定下一步排查；不要重装旧包或随机关闭其他模块。
 
-若依然开机 fatal，保存新的 fatal/crash `.log` 和两个模块日志，关机移走整个模块目录恢复启动；不要开关其他一批模块碰运气。v2 可能缩小影响范围，但不能承诺消除未知的资源限制原因。
-
-若 PKI 导入成功但没有关联流程推进，保留新错误码和 DNS 日志，再定位下一个本地边界；不恢复全系统 MITM，不直接上 fake-ID 或 IPS。
-
-## 后续扩展
-
-两个 ID 列表都支持最多16个逗号分隔、恰好16位的十六进制 ID（不带0x；可有空格）。空列表、重复项、全零、非法字符、截断或超长列表均不会许可任何前缀。
-
-新的 ID 必须有额外的定向证据才能加入两个列表。v2 有意不观察未接管程序，因此不能靠本模块日志自动发现所有其他调用者；需要先从具体错误报告/其他明确证据提出目标，再定向诊断。增加 ID 不会自动把普通 ISslContext 纳入 fallback；若后续证据走普通 context，需要另行审查实现。这一轮只修改已观察到的 ISslContextForSystem。
+日志无payload/账户内容；PKI日志8MiB封顶。没有新增日志时核对build和日志容量，不要扩大拦截范围。固件/密钥无需放到SD或交给模块。

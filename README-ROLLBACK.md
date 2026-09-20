@@ -1,11 +1,10 @@
-# 回滚
+# NIM-only v2 回滚
 
-1. 完整关机，取出 SD。不要仅退出设置页面：sysmodule 会持续运行到关机/重启。
-2. 有原模块备份：恢复 `/atmosphere/contents/4200000000000666/` 原目录；原先没有该模块：移走本次添加的整个目录（包括 mitm.lst 和 boot2.flag）。只取消 boot2.flag 却留下 MITM 声明可能造成启动/服务等待，完整恢复目录最稳妥。
-3. 恢复备份的 `/atmosphere/config/system_settings.ini`，或精确撤回本次 `[network_mitm]` 修改。不要误删其他配置节。
-4. 保留现有 Prelude Nextendo hosts、DNS 重定向和原本信任文件；无需切换 Nintendo mode。本项目未改这些文件。
-5. 归档 `/network_mitm/internal_pki.log` 和 `/atmosphere/logs/network_mitm_observer.log`，再重启 emuMMC。
+1. 完整关机，取出 SD；保存本轮 `/network_mitm/internal_pki.log`、`/atmosphere/logs/network_mitm_observer.log`，以及本轮 fatal/crash `.log`（如果产生）。
+2. 将整个 `/atmosphere/contents/4200000000000666/` 移到电脑。不要只移走 boot2.flag 而保留 mitm.lst。
+3. 恢复安装前 system_settings.ini 的 `[network_mitm]` 配置。不要改其他配置段、Prelude hosts、DNS 或信任文件。
+4. 重启 emuMMC。若安装前并无本模块，保持这个目录不在 contents 内即可。不要恢复已导致启动故障的 v1 全系统追踪包。
 
-如果只是停止 fallback、继续定位：将 enable_device_cert_fallback 设为0并清空 allowlist，或重新安装纯追踪版，然后完整重启。若发生开机异常，在关机状态直接完成上述 SD 回滚。
+仅想关掉 fallback 时，可设 enable_device_cert_fallback=0 后完整重启；它仍会对明确列出的 NIM 做定向日志，不会重新扫描全系统。如要完全撤掉模块，采用上面的目录移除方式。
 
-临时证书/密钥没有写入 SD，也没有修改 PRODINFO/NAND；删除日志不是密钥擦除步骤。底层 SSL context 持有的临时 PKI 随 context 删除/系统重启释放。本项目没有 donor 身份、fake PKI ID、eTicket 修改或 SSL NSO IPS 可回滚。
+没有修改 NAND、PRODINFO、序列号、eTicket key、固件 ExeFS 或 IPS。临时证书/key 没有写 SD；系统 context 的临时对象随销毁或重启释放。

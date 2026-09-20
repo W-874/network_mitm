@@ -1,9 +1,0 @@
-; Merge these keys into the existing section. Do not replace system_settings.ini.
-[network_mitm]
-enable_ssl = u8!0x1
-should_mitm_all = u8!0x1
-trace_internal_pki = u8!0x1
-enable_device_cert_fallback = u8!0x0
-should_dump_ssl_traffic = u8!0x0
-should_disable_ssl_verification = u8!0x0
-; No custom_ca_public_cert. Preserve Prelude hosts/trust.

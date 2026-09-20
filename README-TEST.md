@@ -1,110 +1,85 @@
-# 测试：损坏 PRODINFO 的 Nextendo SSL Client-PKI PoC
+# NIM-only v2：安装与结果判读
 
-这是实验模块，不是身份修复工具。先测试纯追踪版；只有日志证实目标调用失败后才启用实验版。交叉编译和主机测试不能替代 HOS 22.5.0 / Atmosphère 1.11.2 实机验证。
+**停止使用 v1 的全系统纯追踪包及旧实验包。**本次直接交付 NIM 定向 fallback，不再要求重复全系统追踪。v2 已交叉编译并通过主机测试，尚未实机验证启动或账户绑定。
 
-## 安装前
+## 已有实机证据
 
-1. 关机备份 SD 上 `/atmosphere/contents/` 和 `/atmosphere/config/system_settings.ini`，记录已有 `network_mitm` 配置。保存现有 DNS 日志。
-2. 保持 **emuMMC、Prelude Nextendo mode、DNS redirect enabled**，保留现有 hosts。不要切换 Nintendo mode，不要主动测试 Nintendo 原站。
-3. 先完成 Prelude 配置，再安装本 ZIP。所核对的 Prelude 源码在重新部署 Nextendo 时会删除旧 network_mitm 的启动文件；测试期间不要重新执行 Prelude 的模式应用/更新部署。若执行过，重新检查模块文件是否还在。
-4. ZIP 直接合并 SD 根目录。使用 upstream `Makefile`/NPDM 确认的路径 `atmosphere/contents/4200000000000666/`。正常包含 `exefs.nsp`、`mitm.lst`（ssl、ssl:s）、`flags/boot2.flag`。不要移动到猜测的 Title ID。
-5. ZIP 不覆盖 `system_settings.ini`，也不附带 DNS hosts、Nintendo 证书、私钥或 IPS。只在现有 `[network_mitm]` 段合并设置，避免重复段/重复键。改配置后完整重启 emuMMC。
+提供的 internal_pki.log 两次启动都记录：program=0100000000000025、CreateContextForSystem 成功、RegisterInternalPki type=1 返回 0x167B。v1 同期发生 am / 0100000000000023 的 0x10801 User Break。v2 只针对前述 NIM 调用；现有日志尚不能证明全系统 MITM 是 AM 崩溃的唯一原因，也不能证明这个开机阶段的 PKI 错误就是手动关联账户 2123-0011 的唯一原因。
 
-## A：先装纯追踪版
+## 安装一次定向版本
 
-文件名：`network_mitm-nextendo-instrumentation.zip`。此二进制不包含 fallback 实现，即使误设 enable_device_cert_fallback=1，也不会合成证书。
-
-```ini
-[network_mitm]
-enable_ssl = u8!0x1
-should_mitm_all = u8!0x1
-trace_internal_pki = u8!0x1
-enable_device_cert_fallback = u8!0x0
-should_dump_ssl_traffic = u8!0x0
-should_disable_ssl_verification = u8!0x0
-```
-
-不要添加 `custom_ca_public_cert`。追踪模式会抑制 upstream 的 PCAP、CA 注入和 disable-verification 行为，保留 underlying ssl 的验证行为及现有 Prelude 信任配置。该模式增加日志和代理开销，因此不能声称完全没有时序影响。
-
-重启后到 System Settings → 用户 → 关联账户，复现一次 2123-0011，记录大致操作时间、错误码和是否出现其他界面。然后关机取日志：
-
-- `/network_mitm/internal_pki.log`
-- 现有 `dns_mitm_debug.log`（保持原位置和原设置）
-- `/atmosphere/logs/network_mitm_observer.log`
-
-追踪日志为追加式，时间戳是开机后的单调时钟毫秒；每次模块启动有 boot/build 标记。ctx 编号在每次进程启动后重新开始，必须和 boot 标记、PID 一起看。conn 是模块内连接对象地址，可辅助区分同 context 的不同连接。日志上限 8 MiB，满后停止追加。每轮开始前关机归档/移走旧 internal_pki.log，避免把旧结果当新结果。SD 写失败会放弃日志，不能把“没有日志”推断为“没有 command 8”。
-
-寻找同一个 ctx 的记录（以下为字段示意，不是真实设备结果）：
-
-```text
-[时间] program=实际16位ProgramID pid=0x实际PID ctx=N RegisterInternalPki phase=begin type=1(DeviceClientCertDefault)
-[时间] program=同一ProgramID pid=同一PID ctx=N RegisterInternalPki type=1 forward_result=0x非零错误
-```
-
-还会记录 CreateContext/CreateContextForSystem、CreateConnection/CreateConnectionEx、SetInterfaceVersion、RemoveClientPki、DoHandshake/DoHandshakeGetServerCert。不保存 payload、token、密码、证书或私钥。
-
-**关卡：必须确认本次复现过程中 type=1 且原始 forward_result 非零，并提取 program 字段。** 如果没有 command 8、原调用成功、只有 begin 没有返回，或模块没有启动，先分析这个事实，不要启用 fallback。SetInterfaceVersion 由客户端选择并原样转发；22.x 的当前接口为5，看到旧客户端选择4也不应强行改5。
-
-## B：证据成立后才装实验版
-
-文件名：`network_mitm-nextendo-broken-prodinfo-poc.zip`。默认 fallback=false，allowlist 为空，不允许任何替换。
-
-从 A 的失败记录复制真实 program（不是 PID），只列实际参与失败调用的程序。不要根据“设置/account/DAuth/BAAS”的名字猜 Title ID。
+1. 关机，备份 `/atmosphere/contents/4200000000000666/`（若还存在）和 `/atmosphere/config/system_settings.ini`。保存已有日志。
+2. 保持 emuMMC、Prelude Nextendo mode 和现有 DNS/信任配置。先完成 Prelude 配置，再装 ZIP；此 Prelude 版本重新部署时会清理 network_mitm。不要切换 Nintendo mode，不修改 hosts、CA 或 IPS。
+3. 把 `network_mitm-nextendo-nim-only-v2.zip` 解压并合并到 SD 根目录，替换同路径的旧 exefs.nsp。模块目录仍是 upstream Makefile/NPDM 指定的 `atmosphere/contents/4200000000000666/`，包含 exefs.nsp、mitm.lst 和 flags/boot2.flag。
+4. 将下列键合并到现有 `[network_mitm]` 段中。只保留一个同名段和每个键的一份定义；不要用下面内容覆盖整份 system_settings.ini。其余配置（包括已有 account.daemon 设置）保留。
 
 ```ini
 [network_mitm]
 enable_ssl = u8!0x1
-should_mitm_all = u8!0x1
+targeted_device_pki_mode = u8!0x1
+mitm_program_ids = str!0100000000000025
 trace_internal_pki = u8!0x1
 enable_device_cert_fallback = u8!0x1
+device_cert_fallback_program_ids = str!0100000000000025
+should_mitm_all = u8!0x0
 should_dump_ssl_traffic = u8!0x0
 should_disable_ssl_verification = u8!0x0
-; 将下面占位符替换为 A 中实际记录的 16 位十六进制 Program ID：
-device_cert_fallback_program_ids = str!<从失败日志复制的16位ProgramID>
 ```
 
-占位符故意不可解析；必须替换才会生效。多个 ID 用逗号分隔，最多16个，每个恰好16位十六进制，无 `0x`、通配符或程序名字。可有空格。空列表、格式错误、重复项、过长/截断、全零 ID 均不会许可任何程序。启动日志 `DevicePkiPolicy` 显示 enabled/allowlist_valid/program_count。fallback 开启时强制 metadata trace；不受 trace_internal_pki=0 影响。
+`should_mitm_all` 在 targeted mode 下完全被忽略；残留值1也不能扩大接管范围。不要添加 `custom_ca_public_cert`。本版本不抓 PCAP、不加载自定义 CA、不覆盖验证选项。
 
-实验版只在允许的程序请求 InternalPki=1 时直接调用同一 underlying context 的 command13，再调用 command12，返回真实 ID。不先调用 command8；不重试 PRODINFO；不伪造成功/ID。其他程序和其他 enum 仍正常 forward。
+代码的默认值仍是 fallback=false、两个列表为空；targeted mode 默认 true。漏配新键会导致不接管任何目标，而不会重新启用 v1 的全系统追踪。上面的实际测试配置显式启用 fallback，并且只填入已经在实机日志出现的 NIM ID。
 
-生成使用 2048-bit RSA、65537、CN=`Nextendo Temporary Client`，有效期由系统生成接口决定（公开接口文档为30天）。证书和私钥仅在内存暂存，导入后擦除；每次符合条件的注册都重新生成，不跨 context 缓存。系统拥有导入对象，RemoveClientPki 原样 forward。
+5. 完整重启 emuMMC。先看能否进入 HOME；能正常进入后，再尝试一次账户关联。不需要再次安装纯追踪版。
 
-日志示意：
+## 预期日志
+
+只需收集 `/network_mitm/internal_pki.log` 与 `/atmosphere/logs/network_mitm_observer.log`。保留当前 DNS debug 日志以便关联时间。internal_pki.log 追加记录，并以独立 boot/build 标记区分；observer 每次启动会清空旧内容，所以重启前请先保存。时间为单调时钟毫秒，ctx 编号在每次启动后重置。
+
+启动配置记录应显示：
 
 ```text
-RegisterInternalPki phase=begin type=1(DeviceClientCertDefault)
-RegisterInternalPki path=synthetic selected=1
-fallback_generate result=0x00000000 origin=ssl_ipc
-fallback_import result=0x00000000 origin=ssl_ipc
-RegisterInternalPki path=synthetic result=0x00000000 pki_id=真实ID
+DevicePkiPolicy targeted=1 mitm_valid=1 mitm_count=1 fallback_enabled=1 fallback_valid=1 fallback_count=1 trigger=0x0000167B
 ```
 
-`fallback_allocate` 和 `fallback_validate_lengths` 是本地错误（origin=local）；generate/import 的 Result 是真实服务/IPC 返回。任何失败都返回错误，不继续导入或重试原厂身份。SD 失败可能无法写出错误记录，但不会因此改成成功。
+observer 的 `AcceptMitmImpl SSL... titleid` 应只有 NIM（可能显示为不补前导零的 `100000000000025`）。其他进程不进入本模块；日志 program=0、ctx=0 的 DevicePkiPolicy 是配置标记，不是接管了额外客户端。
 
-## 按层评估，不把编译成功当绑定成功
+成功路径示意（不是实机已成功的记录）：
 
-| 级别 | 证据 / 下一步 |
+```text
+program=0100000000000025 ... CreateContextForSystem forward_result=0x00000000
+program=0100000000000025 ... RegisterInternalPki type=1 forward_result=0x0000167B
+program=0100000000000025 ... fallback_generate result=0x00000000 origin=ssl_ipc
+program=0100000000000025 ... fallback_import result=0x00000000 origin=ssl_ipc
+program=0100000000000025 ... RegisterInternalPki phase=complete result=0x00000000
+program=0100000000000025 ... ClientPki pki_id=真实ID
+```
+
+此版先调用一次原 command8。原调用成功则返回原 ID、不生成证书；其他错误及其他 enum 均原样返回。仅选中目标的 system context、type=1、原 Result=0x167B 才执行 command13→12。Generate/Import 错误原样返回；没有假成功、fake ID、再次重试原身份或换 context。
+
+日志只保留 context 创建和 PKI 的 Result metadata。不再记录 SetInterfaceVersion、CreateConnection、DoHandshake 或 RemoveClientPki。后者始终执行原始删除；连接 wrapper 只做透明转发。没有这些日志不代表没有发生对应调用。
+
+证书参数为 RSA2048、65537、CN="Nextendo Temporary Client"；系统生成 DER 后按实际长度导入。暂存内存每条退出路径均清零，私钥不写 SD。失败的原注册是否留下阻止导入的 context 状态，仍要看实机 Import Result；不为此提前编写绕过。
+
+日志上限8 MiB，达到上限停止追加；SD写失败放弃记录而不改 SSL Result。没有日志时先检查新配置、模块文件和最新 boot 标记，不要扩大 allowlist。
+
+## 分层判断
+
+| 层级 | 判定 |
 |---|---|
-| 0 | 2123-0011 且本次流程无相关 DNS：现状，不能单独证明失败位置 |
-| 1 | 纯追踪捕获 type=1 的 command8 且真实返回失败；确认 program；否则停止方案 |
-| 2 | Generate 和 Import 成功，返回真实 PkiId，原错误点有所变化 |
-| 3 | 本次账户动作首次产生 dauth-lp1.ndas.srv.nintendo.net、accounts.nintendo.com、api.accounts.nintendo.com、BAAS 或 aauth 等关联 DNS：关键进展 |
-| 4 | Nextendo TLS/API 或登录页响应，即使变成其他错误也有诊断价值 |
-| 5 | Nextendo 账户最终成功绑定 |
+| 启动门槛 | 能正常进入系统，且接管客户端只有 NIM；v2 尚未验证 |
+| Level 1 | NIM system context 的 type=1 原调用0x167B：已有两次开机日志证据 |
+| Level 2 | Generate/Import 成功并返回真实 ID；还需实机验证 |
+| Level 3 | 本次相关流程出现新的 dauth/accounts/baas/aauth DNS；需结合时间和缓存判断 |
+| Level 4 | Nextendo 页面或 TLS/API 有响应，即使出现新错误码也有价值 |
+| Level 5 | Nextendo 账户绑定完成 |
 
-Level 3 还需与本次动作/时间对应，避免把后台查询当证据；DNS 缓存也可能影响观察。错误变化不等于身份恢复。
+若依然开机 fatal，保存新的 fatal/crash `.log` 和两个模块日志，关机移走整个模块目录恢复启动；不要开关其他一批模块碰运气。v2 可能缩小影响范围，但不能承诺消除未知的资源限制原因。
 
-如果 Import 成功但仍无相关 DNS，不创建 fake-ID workaround，也不立即打 IPS。先根据日志确定下一个本地边界，再设计 ssl/account/dauth/set:cal/spl:ssl 的 metadata instrumentation。此版本没有这些服务的额外拦截，也没有 Branch B/Branch C。
+若 PKI 导入成功但没有关联流程推进，保留新错误码和 DNS 日志，再定位下一个本地边界；不恢复全系统 MITM，不直接上 fake-ID 或 IPS。
 
-## 本轮实机结果待填写
+## 后续扩展
 
-- 主机环境：HOS / Atmosphère / emuMMC / Prelude 版本：
-- 安装的 ZIP 与 SHA-256：
-- Level 1 program / PID / ctx / Result：
-- Generate Result / Import Result / PkiId：
-- 首个新增关联 DNS 与时间：
-- Nextendo 响应 / 新错误码：
-- RemoveClientPki Result（如发生）：
-- 达到的最高级别：
+两个 ID 列表都支持最多16个逗号分隔、恰好16位的十六进制 ID（不带0x；可有空格）。空列表、重复项、全零、非法字符、截断或超长列表均不会许可任何前缀。
 
-当前源码只验证了 nx-dauth 的仓库实现假设，不代表已验证线上部署或所有 Nextendo 服务。见 INVESTIGATION.md 的固定 commit 来源。
+新的 ID 必须有额外的定向证据才能加入两个列表。v2 有意不观察未接管程序，因此不能靠本模块日志自动发现所有其他调用者；需要先从具体错误报告/其他明确证据提出目标，再定向诊断。增加 ID 不会自动把普通 ISslContext 纳入 fallback；若后续证据走普通 context，需要另行审查实现。这一轮只修改已观察到的 ISslContextForSystem。

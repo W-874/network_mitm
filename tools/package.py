@@ -18,7 +18,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--sd', type=Path, default=ROOT / 'out/sd')
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--variant', choices=['instrumentation', 'fallback-disabled'], required=True)
+    parser.add_argument('--variant', choices=['nim-only-v2'], default='nim-only-v2')
     parser.add_argument('--source-commit', required=True)
     args = parser.parse_args()
     title = re.search(r'^TITLE_ID\s*:=\s*([0-9A-Fa-f]{16})$', (ROOT/'Makefile').read_text(), re.M)[1]
@@ -30,12 +30,9 @@ def main():
         rel = contents/leaf
         files[str(rel)] = (args.sd/rel).read_bytes()
     assert files[str(contents/'mitm.lst')].splitlines() == [b'ssl', b'ssl:s']
-    for name in ['INVESTIGATION.md','README-TEST.md','README-ROLLBACK.md','BUILD-REPORT.md','LICENSE']:
+    for name in ['README.md','INVESTIGATION.md','README-TEST.md','README-ROLLBACK.md','BUILD-REPORT.md','EVIDENCE-v2.md','LICENSE']:
         files['network_mitm/docs/'+name] = (ROOT/name).read_bytes()
-    example = (ROOT/'config/instrumentation.ini.example').read_bytes()
-    files['network_mitm/docs/instrumentation.ini.example'] = example
-    if args.variant == 'fallback-disabled':
-        files['network_mitm/docs/fallback-disabled.ini.example'] = (ROOT/'config/fallback-disabled.ini.example').read_bytes()
+    files['network_mitm/docs/nim-only.ini.example'] = (ROOT/'config/nim-only.ini.example').read_bytes()
     # The patch must match the actual binary's recorded source revision.
     patch = subprocess.check_output(['git','diff','--binary',UPSTREAM,args.source_commit], cwd=ROOT)
     files['network_mitm/docs/PATCH.diff'] = patch
@@ -49,6 +46,11 @@ def main():
         'hardware_verified': False,
         'fallback_default_enabled': False,
         'default_allowlist': [],
+        'targeted_mode_default': True,
+        'recommended_mitm_program_ids': ['0100000000000025'],
+        'recommended_fallback_program_ids': ['0100000000000025'],
+        'original_result_trigger': '0x0000167B',
+        'scope': 'ISslContextForSystem only',
         'files': {name: hashlib.sha256(data).hexdigest() for name,data in files.items()},
     }
     files['network_mitm/docs/BUILD-MANIFEST.json'] = (json.dumps(manifest,indent=2)+'\n').encode()

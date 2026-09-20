@@ -1,84 +1,73 @@
-# Nextendo / damaged PRODINFO SSL investigation
+# SSL Client-PKI investigation — NIM-only v2
 
-Research date: 2026-09-20. Target: HOS 22.5.0 / Atmosphère 1.11.2 / emuMMC.
-Status: source investigation and both binary builds complete; untouched upstream build succeeded (devkitA64 r30 / GCC 16.1.0 / libnx 4.12.0); no on-device evidence yet.
+Updated 2026-09-20. Target: HOS22.5.0 / Atmosphère1.11.2 / emuMMC. V1 instrumentation produced useful NIM metadata but booted into AM fatal. V2 is built and host-tested; its runtime behavior is not yet verified.
 
-## Scope and feasibility
+## Feasibility and evidence
 
-The proposed replacement is plausible at the SSL context boundary. It does not restore a Nintendo identity. A successful local PKI import is not proof that account linking works. The absence of a DNS log alone does not locate the failure: DNS caching, an unobserved caller, another local identity check, or failure before SSL are alternatives. Hardware Level 1 evidence is mandatory before enabling replacement.
+The SSL context boundary exposes real key/certificate generation and import, so the proposed replacement is implementable without identity restoration or fake IDs. Two supplied boot traces show program0100000000000025 successfully creating ISslContextForSystem, then command8 type1 returning0x167B. This supports a narrow NIM experiment. It does not prove the cause of AM's UserBreak/0x10801 or locate the manual account-linking2123-0011 failure. See EVIDENCE-v2.md.
 
-The patch adds no direct access to PRODINFO, PRODINFOF, CAL0, BOOT0/1, BIS, eMMC, serial, eTicket keys, ssl_rsa_key, fuses or donor identity. It does not modify any of them, Nintendo certificate/private keys, Nintendo endpoints, DNS configuration or firmware ExeFS. In instrumentation or nonselected calls, the original SSL service may still attempt its normal device-PKI read; that original behavior is intentionally preserved. Building a homebrew exefs.nsp package is not patching the firmware SSL ExeFS.
+The revised requirement intentionally supersedes the original direct-replacement design: call original command8 once, then generate/import only on the observed0x167B. The original call returned an error cleanly in both captures; nevertheless its failed registration could leave context state that prevents import. Preserve and report any such error. No retry of the original identity follows a synthetic generation/import failure.
 
 ## Pinned sources
 
-- network_mitm: `c15d659600760ac83151e38660c468244176c5b0` ("Update for 22.5.0 support"). https://github.com/nookingtons/network_mitm/commit/c15d659600760ac83151e38660c468244176c5b0
-- Atmosphere-libs submodule: `d3083af1827cd6ca2a96feb9316eb85cd01bae1f`. No submodule update planned.
-- Atmosphère reference: `6e6af694244002fd6799703a54a5e24f0a0b9ac1`; release version macros are 1.11.2. https://github.com/Atmosphere-NX/Atmosphere/tree/6e6af694244002fd6799703a54a5e24f0a0b9ac1
-- nx-dauth: `6ba8273dfed545424e96a278d7e3506fb7e8d5e6`. https://github.com/NextendoNetwork/nx-dauth/blob/6ba8273dfed545424e96a278d7e3506fb7e8d5e6/main.go
-- Prelude-Nro: `6dbd0ea6ab462dd19e7a02fb49b2e6c9c18c05e9`. https://github.com/NextendoNetwork/Prelude-Nro/tree/6dbd0ea6ab462dd19e7a02fb49b2e6c9c18c05e9
-- SSL IPC reference: https://switchbrew.org/w/index.php?title=SSL_services&oldid=15056
-
-## Server assumption: verified in source, not deployment
-
-nx-dauth/main.go:418 configures `ClientAuth: tls.NoClientCert`. Lines 12–16 describe ignoring the console's device crypto. Lines 288–302 parse client IDs and issue their own `mkDeviceToken` without checking mac/challenge. This source-level assumption still holds. Go NoClientCert means the server does not request a TLS client certificate; the client's local attempt to load one can nevertheless fail before a handshake. This does not establish what version the user's remote service is running or the policy of every other Nextendo endpoint.
-
-## Existing wrappers and forward objects
-
-Paths below are relative to network_mitm repository root.
-
-| Interface | Declaration / implementation |
+| Source | Commit |
 |---|---|
-| ISslService / SslServiceImpl | network_mitm/source/networkmitm_ssl_service_impl.{hpp,cpp} |
-| ISslServiceForSystem / SslServiceForSystemImpl | network_mitm/source/networkmitm_ssl_for_system_service_impl.{hpp,cpp} |
-| ISslContext / SslContextImpl | network_mitm/source/networkmitm_ssl_context_impl.{hpp,cpp} |
-| ISslContextForSystem / SslContextForSystemImpl | network_mitm/source/networkmitm_ssl_context_for_system_impl.{hpp,cpp} |
-| ISslConnection / SslConnectionImpl | network_mitm/source/networkmitm_ssl_connection_impl.{hpp,cpp} |
+| network_mitm upstream | c15d659600760ac83151e38660c468244176c5b0 |
+| Atmosphere-libs submodule | d3083af1827cd6ca2a96feb9316eb85cd01bae1f |
+| Atmosphère reference | 6e6af694244002fd6799703a54a5e24f0a0b9ac1 |
+| nx-dauth | 6ba8273dfed545424e96a278d7e3506fb7e8d5e6 |
+| Prelude-Nro | 6dbd0ea6ab462dd19e7a02fb49b2e6c9c18c05e9 |
 
-`networkmitm_main.cpp` registers MITM for both `ssl` and `ssl:s`. `ServerManager::OnNeedsToAccept` uses `AcknowledgeMitmSession` to get the original `Service` and `sm::MitmProcessInfo`, including **process_id and program_id**. These are carried into contexts and connections; no guessed title-to-process lookup is needed.
+[Upstream](https://github.com/nookingtons/network_mitm/commit/c15d659600760ac83151e38660c468244176c5b0), [Atmosphère](https://github.com/Atmosphere-NX/Atmosphere/tree/6e6af694244002fd6799703a54a5e24f0a0b9ac1), [Prelude](https://github.com/NextendoNetwork/Prelude-Nro/tree/6dbd0ea6ab462dd19e7a02fb49b2e6c9c18c05e9), [SSL IPC reference](https://switchbrew.org/w/index.php?title=SSL_services&oldid=15056).
 
-Service command 0 `CreateContext` (both services) and `ssl:s` command 100 `CreateContextForSystem` call the existing shim with PID override. On success they wrap the returned `Service` with `CreateSharedObjectEmplaced` and preserve its domain object ID. Context command 2 and system-context command 100 create connections similarly. Destructors close the original service object.
+Rechecked nx-dauth main on 2026-09-20; unchanged at the pin. [main.go](https://github.com/NextendoNetwork/nx-dauth/blob/6ba8273dfed545424e96a278d7e3506fb7e8d5e6/main.go) configures tls.NoClientCert at line418. Opening comments describe ignored device crypto; lines288–302 issue mkDeviceToken without console mac/challenge validation. This is source evidence, not a check of the deployed server or all Nextendo endpoints.
 
-Context commands **7, 8, 12, 13 all already have explicit wrappers and C shims**, for both context variants. 12/13 are guarded for HOS >=16.0.0. Forward IPC uses `serviceMitmDispatch*` in `network_mitm/source/shim/ssl_shim.c`, operating on the original object's `Service`, not a separately opened SSL context.
+## Existing wrappers and original objects
 
-Important: upstream skips wrapping contexts when both traffic dumping and certificate-verification disabling are off. Tracing must become a third reason to wrap; otherwise enabling only trace would silently miss command 8.
+All paths below are relative to this repository. Implementations live under `network_mitm/source/`.
 
-## ABI / HOS 22.5.0
+| Interface / wrapper | Files (.hpp/.cpp) |
+|---|---|
+| ISslService / SslServiceImpl | networkmitm_ssl_service_impl |
+| ISslServiceForSystem / SslServiceForSystemImpl | networkmitm_ssl_for_system_service_impl |
+| ISslContext / SslContextImpl | networkmitm_ssl_context_impl |
+| ISslContextForSystem / SslContextForSystemImpl | networkmitm_ssl_context_for_system_impl |
+| ISslConnection / SslConnectionImpl | networkmitm_ssl_connection_impl |
 
-The pinned submodule includes `hos::Version_22_5_0`. No unsupported-version bypass or firmware-version spoofing is needed.
+`networkmitm_main.cpp` registers both SSL ports. `ServerManager::OnNeedsToAccept` calls `AcknowledgeMitmSession` to obtain the original Service plus actual process_id/program_id. The wrapper retains that Service; C shims in `shim/ssl_shim.c` use serviceMitmDispatch on it. No separate SSL service/context is opened for PKI import.
 
-Published SSL interface version is **5** on 22.x. Service command 5 `SetInterfaceVersion` already has a shim but no explicit service wrapper. The root interfaces use `AMS_SF_DEFINE_MITM_INTERFACE`, so unhandled root commands are forwarded; the patch will additionally trace and transparently forward command 5. It will never force version 3/4/5 or confuse this with the separate ApiVersion bits in SslVersion. Root commands 10/11 (21+) also remain transparently forwarded.
+Upstream service command0 creates ordinary contexts; ssl:s command100 creates system contexts. Both retain the original service domain object ID when wrapping child objects. V2 leaves ordinary contexts native and wraps only the selected system-context path when that client's tracing or fallback is active.
 
-Published context 7/8/12/13 layouts have no documented 22.5.0-specific change. Command 8: u32 enum -> u64 ID; command 12: u32 format + two map-alias input buffers -> u64 ID; command 13: u32=1 + params input buffer + cert/key output buffers -> two u32 lengths. Existing shims match these descriptions. No new definition for these commands is necessary. Hardware compatibility is not yet proven by these descriptions or by compilation.
+Both upstream context variants already explicitly implement commands7 RemoveClientPki,8 RegisterInternalPki,12 ImportClientCertKeyPki,13 GeneratePrivateKeyAndCert. Commands12/13 are gated at HOS16.0.0. No new shim or command layout is needed.
 
-If replacement is implemented, `KeyAndCertParams` must have size 0x58 and offsets 0,4,8,0x10,0x50 (including four final padding bytes); validate with static_assert. Generate with version=1, 2048 bits, exponent=65537, CN="Nextendo Temporary Client"; use the actual returned DER lengths for import. Use CertificateFormat::Der (2), propagate errors, clear private key memory, return the underlying real PKI ID. Do not forward command 8 first; leave RemoveClientPki as a real forward. No fake IDs.
+## ABI and ownership
 
-## Integration findings
+The pinned Atmosphere-libs includes Version_22_5_0. Published SSL interface version is5, also observed in v1 console logs. Root interfaces use AMS_SF_DEFINE_MITM_INTERFACE: unhandled root command5 is forwarded. V2 removes the explicit v1 command5 wrapper and never overrides a version.
 
-- Upstream defaults to decrypted PCAP capture. Diagnostic operation must suppress this; no payload/token/password/certificate/key logging.
-- Prelude-Nro `source/nextendo_apply.c`, `NEXTENDO_STALE_FILES` and `nextendo_purge_stale`, removes this module's exefs.nsp, mitm.lst and boot2.flag when provisioning Nextendo. Apply existing Prelude mode **before** installing the experimental module and do not reprovision during capture. Do not change the user's hosts.
-- Prelude's current trust stack includes version-specific patches and browser CA data; DNS redirection alone does not prove server trust. Preserve the already configured stack. This project must not enable its own disable-verification flag or custom CA injection.
-- Program allowlist entries must come from successful capture of the failing flow. Empty list must permit no replacements; system title names are not sufficient evidence.
-- Settings/account errors may still come from local device signing outside SSL. Import success with no new DNS means investigate the next boundary, not immediately patch NSO instructions.
+Context commands7/8/12/13 have no documented new22.5.0 layout. Existing shims match the published enum/buffer/result layouts. KeyAndCertParams size0x58 and member offsets are compile-time checked. DER format is2. Generate uses version1, RSA2048,65537, CN="Nextendo Temporary Client", two4096-byte buffers, and actual returned lengths for import. Storage is wiped via volatile writes on every allocated exit path. No cert/key bytes are logged.
 
-## Packaging and intended files
+Context interfaces are ordinary AMS_SF_DEFINE_INTERFACE children, not root MITM interfaces with independently attached forward sessions. Returning an unwrapped connection from this registered child would require changing IPC/session ownership. V2 therefore preserves upstream connection ownership and domain IDs, but removes capture, handshake logging and verification changes. The connection constructor performs no extra IPC. RemoveClientPki remains original forwarding.
 
-The upstream top-level `Makefile` defines TITLE_ID=`4200000000000666` and packages `out/sd/atmosphere/contents/$(TITLE_ID)/{exefs.nsp,mitm.lst,flags/boot2.flag}`. `network_mitm/network_mitm.json` independently agrees on the title ID. Use this packaging result instead of inventing a contents path. A ZIP must not overwrite system_settings.ini or Prelude hosts.
+## Selection and v2 modifications
 
-Planned instrumentation edits: service/context/connection .hpp/.cpp files above; `networkmitm_main.cpp`; `networkmitm_utils.hpp`; new metadata-only tracing helper; documentation and packaging helper. The shim already implements required PKI IPC; do not modify it without a demonstrated ABI reason. The user approved preparing a separate disabled fallback before on-device evidence; fallback adds a shared helper and strict program-ID configuration/parser, with separate trace-only artifact and no prepopulated IDs.
+Both root ShouldMitm callbacks use one program-list policy before session acceptance. The ssl:s server registration previously specified SslServiceImpl; v2 registers SslServiceForSystemImpl so its matching callback is used. Targeted=true overrides should_mitm_all on both ports, including normal applications. Missing new configuration means targeted=true, empty lists and fallback=false. Explicit targeted=false retains upstream service-selection rules but disables the experiment's per-client options; it is not a recommended test configuration.
 
-## Validation gates
+Per-client options are computed at session acceptance and passed to the system context. Only membership in both MITM and fallback lists permits fallback. Trace does not broaden acceptance. Parser accepts at most16 exact16-hex IDs, rejects the whole malformed/truncated/duplicate list, and accepts an empty list as no targets. Fallback forces metadata logging only for that selected client.
 
-1. Build untouched upstream first and preserve build log, source hashes, toolchain versions, and binary checksum.
-2. Build instrumentation with only forwarded results; package it independently.
-3. On emuMMC, prove command 8 with type=1 fails at the user's 2123-0011 action, and record program ID, PID, context ID, timestamps and raw Result. Lack of this evidence is not a fallback success or a confirmed diagnosis.
-4. Only then enable a prepared fallback (or implement it after capture), for the observed program IDs; verify generation/import/real ID, DNS, then Nextendo response, then account link.
+Actual modified files include main, the five wrapper pairs above, networkmitm_utils.hpp; new networkmitm_pki_policy.hpp, networkmitm_device_pki.{hpp,cpp}, networkmitm_synthetic_pki.hpp, networkmitm_pki_trace.{hpp,cpp}; tests/test_pki.cpp, tools/test-host.sh, tools/package.py, config/nim-only.ini.example and these documents. Main no longer loads custom CA or enables PCAP/verification overrides. The observer log is truncated per boot to prevent old broad-interception records remaining at the end of a shorter v2 log. Internal PKI logs append with boot/build markers and8MiB cap.
 
-Untouched baseline NSP SHA-256: `4cc2ce3730632eb66344db81f34e64d50711fb211bca369debf3ba25691afd94`. Build exit status 0. Build logs preserve upstream warnings. npdmtool legacy field notices were checked against the generated ACI0 and ACID: program ID/range are correct.
+The existing shims, interface layouts for required PKI commands, submodule, program identity and package location are unchanged. Full and v1-to-v2 diffs are delivered.
 
-## Implemented adjustment and current result
+## Boundaries and installation
 
-The requested hardware gate is preserved as a deployment gate: both builds are prepared, but first install the independently tagged trace-only artifact. The user explicitly chose this two-artifact workflow during this session. No program ID has been guessed or prepopulated. The final fallback default is off and an absent/invalid list permits no replacements.
+No direct PRODINFO/PRODINFOF/CAL0/BOOT0/BOOT1/BIS/eMMC/serial/eTicket/ssl_rsa_key/fuse access or modification is added. No donor identity, fake ID, firmware ExeFS patch or IPS exists. Original command8 may invoke its normal read of device identity; v2 forwards that once by the revised requirement.
 
-Implemented metadata helpers: `networkmitm_pki_trace.{hpp,cpp}`. Fallback implementation: `networkmitm_device_pki.{hpp,cpp}`, portable `networkmitm_pki_policy.hpp` and `networkmitm_synthetic_pki.hpp`. The production helper uses existing command13/12 shims on the original Service pointer, 4096 bytes per DER buffer, actual returned lengths, error propagation, volatile memory erasure. Existing `shim/ssl_shim.{h,c}` and Atmosphere-libs remain unchanged.
+Prelude's source/nextendo_apply.c cleanup removes this module's exefs.nsp,mitm.lst,boot2.flag while provisioning. Keep existing Nextendo redirects and server trust, apply Prelude before installing this package, and do not enable network_mitm CA or verification bypass. No test sends requests to Nintendo.
 
-Host tests and sanitizer runs passed; all three cross-builds passed. See BUILD-REPORT.md for binary source commits, checksums, exact tools and the unverified hardware boundaries. README-TEST.md gives the required Level 1 gate and subsequent Levels 2–5. There is no Plan B fake ID branch and no firmware IPS.
+The upstream Makefile TITLE_ID and network_mitm/network_mitm.json both specify4200000000000666. Package files come from out/sd/atmosphere/contents/4200000000000666. No system_settings.ini or hosts is included. Full backup/rollback steps are in README-TEST.md and README-ROLLBACK.md.
+
+## Validation boundary
+
+Untouched upstream built successfully before initial edits; baseline exefs.nsp SHA256:4cc2ce3730632eb66344db81f34e64d50711fb211bca369debf3ba25691afd94. V2 host routing, exact-error gating, original-success preservation, injected failures and erasure tests pass, including sanitizers; cross-build passes. See BUILD-REPORT.md and the package manifest.
+
+Next runtime gates are: boot successfully with only NIM accepted; observe Generate/Import results; correlate the account action with DNS/API progress; then account linking. A smaller interception scope cannot by itself guarantee that AM's resource-related fatal is gone. New target IDs require specific evidence, never a return to all-system tracing. Ordinary-context evidence would require a separate reviewed implementation, not just an ID-list edit.

@@ -1,63 +1,51 @@
-# Build and validation report
+# NIM-only v2 build and validation
 
-Date: 2026-09-20. Hardware tests: **not performed**; no Switch was attached. No Level 1–5 success is claimed.
+Date:2026-09-20. The v1 console failed to boot, and its two captured NIM errors motivated this revision. **V2 has not been hardware-tested.** Do not interpret compilation or mock IPC tests as a resolved boot fatal or successful account link.
 
-## Build provenance
+## Provenance
 
-Original upstream and recursive submodule were cloned and kept unchanged until the baseline build and packaging completed successfully. No source compatibility fixes were needed. The initial serial compilation was stopped to resume the same unchanged source with `make -j8`; the final baseline exited 0 before the first source patch. Sub-makes emit a jobserver warning, so not all compilation is parallel.
+Untouched upstream c15d659600760ac83151e38660c468244176c5b0 was built successfully before initial modifications. Its exefs.nsp SHA256 is4cc2ce3730632eb66344db81f34e64d50711fb211bca369debf3ba25691afd94. V1 binaries and old build logs remain as historical evidence; they are withdrawn from installation guidance.
 
-Base image: `docker.io/devkitpro/devkita64:latest`, local image ID `551247dfe0524421b8cb608117a767c77823e76608fa2058f0eb5d5398293641`.
-Prepared toolchain image: `localhost/nextendo-toolchain:20260920`, image ID `a56fad1e99abdbab62b0e13dde080f2bb47887bb753e95cea4bd6a00a4244f95`.
+Base image: docker.io/devkitpro/devkita64:latest, local image ID551247dfe0524421b8cb608117a767c77823e76608fa2058f0eb5d5398293641.
+Prepared image: localhost/nextendo-toolchain:20260920, IDa56fad1e99abdbab62b0e13dde080f2bb47887bb753e95cea4bd6a00a4244f95.
 
-Installed through the upstream recipe (`dkp-pacman -Syu` then `-S --needed switch-dev switch-mbedtls switch-libjpeg-turbo libnx`):
+- devkitA64 r30-1; devkita64-gcc16.1.0-1
+- libnx4.12.0-1; switch-tools1.13.1-1; switch-mbedtls2.28.10-1
+- Atmosphere-libs d3083af1827cd6ca2a96feb9316eb85cd01bae1f, unchanged
 
-- devkitA64 r30-1; devkita64-gcc 16.1.0-1
-- libnx 4.12.0-1; switch-tools 1.13.1-1
-- switch-mbedtls 2.28.10-1
-- Atmosphere-libs d3083af1827cd6ca2a96feb9316eb85cd01bae1f
+The package BUILD-MANIFEST.json records the exact binary-source commit, documentation commit and all packaged file hashes. The build log is distributed alongside the ZIP. The code commits isolate routing/fallback refactoring and observer-log truncation. Documentation may have a later revision without changing executable sources.
 
-| Variant | Binary source commit | exefs.nsp SHA-256 | Build |
-|---|---|---|---|
-| Untouched upstream | `c15d659600760ac83151e38660c468244176c5b0` | `4cc2ce3730632eb66344db81f34e64d50711fb211bca369debf3ba25691afd94` | PASS |
-| Instrumentation | `d8cf75b9d70c1b35748e9e64ced7d456764dd2d1` | `c40c2216ce3fc5365a7e2c1ed27ac1da65881025e18b61ea94d69e03d3511245` | PASS |
-| Fallback (default off) | `3e236215c3db7c603d2e32489ee02409b1df879c` | `e4fcd68b612fcf5679195a8622aa04f0237ce1af689742c4e3753a54bbe69614` | PASS |
+## Validation
 
-Source and documentation revisions are separately recorded in each ZIP's BUILD-MANIFEST.json. The two variant binaries were retained before proceeding to the next stage. The baseline is a reference artifact, not the installation recommendation.
+A clean application rebuild with make -j8 succeeds. Host tests compile with -Wall -Wextra -Werror and pass; they also pass in the toolchain container under AddressSanitizer and UndefinedBehaviorSanitizer. The initial v2 build was repeated after the final observer-log fix so the delivered package includes that change.
 
-## Checks completed
+Tests exercise actual portable production routing/dispatch helpers:
 
-- Untouched upstream: `make -j8`, package generated, exit 0.
-- Trace-only source: `make -j8`, package generated, exit 0.
-- Fallback source: `make -j8`, package generated, exit 0.
-- Host unit/fault-injection tests: `tools/test-host.sh`, PASS with `-Wall -Wextra -Werror`.
-- Same tests inside container: `SANITIZER_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" tools/test-host.sh`, PASS; no sanitizer findings. Host system itself lacked libasan, so sanitizer execution used the container.
-- Tests cover default-off/empty list, exact program matching, non-device enum pass-through selection, malformed/truncated/duplicate/excess/all-zero IDs, output sizes including boundaries, allocation failure, exact generate/import error propagation, real returned ID, and erasing all temporary storage on success and every failure after allocation.
-- Compile-time parameter layout offsets/size and CertificateFormat::Der=2 checks.
-- Review of both context paths, no forward-command8 in selected synthetic branch, unchanged RemoveClientPki shims, no certificate/key/payload logging.
-- `git diff --check`; packaging script validates module path against NPDM JSON, archive contents and ZIP CRC.
+- Both SSL ports, selected/unselected system clients and applications, legacy should_mitm_all both true/false; default-empty targeted mode intercepts none.
+- Per-client trace and fallback intersection; trace cannot broaden selection; fallback forces metadata only for selected clients.
+- Strict parsing of up to16 IDs, malformed/truncated/duplicate/all-zero/excess lists, no partial acceptance.
+- Original-success ID preservation; Cartesian type/enable/result combinations permit synthetic generation only for type1 + enabled + original0x167B. Other errors and IDs remain unchanged.
+- Exactly one original call; original→generate→import ordering; allocation, generation, import, zero/oversized DER length failure propagation; output untouched on error.
+- Real imported ID returned and all8192 bytes erased before freeing on every allocated exit path.
+- Compile-time KeyAndCertParams size/offset and DER enum checks.
 
-Upstream compiler warnings (mostly existing ignored nodiscard results and LTO serialization) remain. npdmtool warns about legacy field names in the unchanged upstream JSON; generated NPDM ACI0/ACID IDs were independently inspected and match 4200000000000666. These notices are not concealed as a warning-free build.
+These tests do not exercise the actual service manager, transport ABI, Horizon resource limits, context state after failed registration, the cryptographic implementation, or real network traffic.
+
+Packaging checks: Makefile/JSON program ID agreement, PFS0 contents, NSO signature and NPDM ACI0/ACID program ID/range, ZIP CRC and manifest hashes, no system_settings.ini or hosts replacement, source archive/bundle and patch consistency. Program ID is4200000000000666.
+
+Existing SDK nodiscard/LTO warnings and npdmtool legacy-field warnings remain; build logs retain them. NPDM IDs are inspected rather than assuming those warnings are harmless. No new IPC definitions or shim edits were made.
 
 ## Reproduce
 
-Use the original docker-compose.yml, or a container with the above packages:
+Use upstream docker-compose.yml or the above toolchain image, with this checkout and its pinned submodule:
 
 ```sh
+make -C network_mitm clean
 make -j8
-tools/test-host.sh
+SANITIZER_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" tools/test-host.sh
+python3 tools/package.py --sd out/sd --output /absolute/path/network_mitm-nextendo-nim-only-v2.zip --variant nim-only-v2 --source-commit nextendo-nim-only-v2
 ```
 
-For the pure tracing code, use tag `nextendo-instrumentation-v1` in a separate checkout (initialize its pinned submodule) and build there. Never switch revisions during an active build. Do not run an unsafe `git reset --hard` over local work.
+The build uses a clean committed source checkout. Package documentation may come from the later documentation commit recorded in the manifest. A source archive includes tracked Atmosphere-libs files; the main-project Git bundle does not contain the submodule repository's Git objects. The complete patch includes current documentation; the package's patch is tied to the binary-source commit.
 
-From the final documentation checkout, package a preserved SD output tree with its actual source commit:
-
-```sh
-python3 tools/package.py --sd /absolute/path/to/saved/sd --output /absolute/path/to/output.zip --variant instrumentation --source-commit nextendo-instrumentation-v1
-# For the fallback tree use --variant fallback-disabled --source-commit nextendo-fallback-v1
-```
-
-Raw logs are delivered in the sibling artifacts directory: upstream-build.log (initial serial run), upstream-build-parallel.log (completed baseline), instrumentation-build.log, fallback-build.log. No tests initiated network traffic to Nintendo or Nextendo; network access was limited to public source/toolchain retrieval.
-
-## Not established by these tests
-
-Runtime module startup, v5 IPC compatibility on the user's exact console, underlying generation/import acceptance, ordinary removal of the imported ID, the origin of 2123-0011, caller allowlist, DNS progress, deployed server trust/policy, and account linking all need the staged on-device test. A successful mock test is not a cryptographic or hardware integration test. The prepared fallback stays gated until that evidence is available.
+No validation here contacts Nintendo or modifies SD/NAND/Prelude. Next hardware steps are narrowly scoped in README-TEST.md; keep the rollback instructions ready.

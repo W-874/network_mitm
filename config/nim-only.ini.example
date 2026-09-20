@@ -1,0 +1,14 @@
+; V2: merge into the existing [network_mitm] section; do not replace the whole file.
+; NIM was observed twice in the user's real command-8 failure logs.
+[network_mitm]
+enable_ssl = u8!0x1
+targeted_device_pki_mode = u8!0x1
+mitm_program_ids = str!0100000000000025
+trace_internal_pki = u8!0x1
+enable_device_cert_fallback = u8!0x1
+device_cert_fallback_program_ids = str!0100000000000025
+; Ignored in targeted mode, including when an old config leaves it at 1.
+should_mitm_all = u8!0x0
+should_dump_ssl_traffic = u8!0x0
+should_disable_ssl_verification = u8!0x0
+; No custom_ca_public_cert. Preserve all existing Prelude hosts/trust settings.

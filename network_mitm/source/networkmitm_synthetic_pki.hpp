@@ -66,4 +66,23 @@ std::uint32_t CreateSyntheticClientPki(Backend &backend, std::uint64_t &out_id) 
     if (rc == 0) out_id = real_id;
     return rc;
 }
+
+constexpr std::uint32_t ObservedDevicePkiError = 0x0000167B;
+
+// Only the system-context wrapper calls this. A failed original registration
+// may have changed context state: import errors are returned, never hidden.
+template<class Backend>
+std::uint32_t RegisterAfterOriginalFailure(Backend &backend, bool fallback_enabled,
+                                         std::uint32_t type, std::uint64_t &out_id) {
+    std::uint64_t original_id = 0;
+    const std::uint32_t rc = backend.ForwardOriginal(type, original_id);
+    backend.LogOriginal(type, rc, original_id);
+    if (rc == 0) {
+        out_id = original_id;
+        return rc;
+    }
+    if (!fallback_enabled || type != 1 || rc != ObservedDevicePkiError) return rc;
+    return CreateSyntheticClientPki(backend, out_id);
+}
+
 }

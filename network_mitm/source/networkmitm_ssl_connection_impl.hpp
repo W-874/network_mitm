@@ -71,36 +71,10 @@ namespace ams::ssl::sf::impl {
         protected:
             std::unique_ptr<::Service> m_forward_service;
             sm::MitmProcessInfo m_client_info;
-            PcapFileWriter *m_writer;
-            u64 m_context_id;
-            ams::ssl::sf::VerifyOption m_requested_option = (ams::ssl::sf::VerifyOption)3;
-            bool m_requested_default_verify;
         public:
-            SslConnectionImpl(std::unique_ptr<::Service> &&s,
-                            const sm::MitmProcessInfo &c, PcapFileWriter *writter, u64 context_id)
-                : m_forward_service(std::move(s)), m_client_info(c), m_writer(writter), m_context_id(context_id) {
-                if (g_should_disable_ssl_verification) {
-                    Result res;
-                    if (R_FAILED(
-                            res = SetOptionReal(
-                                true, ams::ssl::sf::OptionType::SkipDefaultVerify))) {
-                        AMS_LOG("Failed to set SkipDefaultVerify! %d-%d\n",
-                                res.GetModule() + 2000, res.GetValue());
-                    }
-                    if (R_FAILED(res = SetVerifyOptionReal(
-                                    static_cast<ams::ssl::sf::VerifyOption>(0)))) {
-                        AMS_LOG("Failed to SetVerifyOptionReal(0)! %d-%d\n",
-                                res.GetModule() + 2000, res.GetValue());
-                    }
-                }
-            }
-            ~SslConnectionImpl() {
-                if (m_writer != nullptr) {
-                    delete m_writer;
-                }
-
-                serviceClose(m_forward_service.get());
-            }
+            SslConnectionImpl(std::unique_ptr<::Service> &&s, const sm::MitmProcessInfo &c)
+                : m_forward_service(std::move(s)), m_client_info(c) { }
+            ~SslConnectionImpl() { serviceClose(m_forward_service.get()); }
 
             Result SetSocketDescriptor(u32 input_socket_fd, ams::sf::Out<u32> output_socket_fd);
             Result SetHostName(const ams::sf::InBuffer &hostname);

@@ -16,6 +16,7 @@
 #pragma once
 #include <stratosphere.hpp>
 #include "networkmitm_utils.hpp"
+#include "networkmitm_device_pki.hpp"
 #include "networkmitm_ssl_types.hpp"
 #include "networkmitm_ssl_context_impl.hpp"
 #include "networkmitm_ssl_context_for_system_impl.hpp"
@@ -23,7 +24,6 @@
 #define AMS_INTERFACE_ISSLSERVICEFORSYSTEM_INFO(C, H) \
     AMS_SF_METHOD_INFO(C, H, 0, Result, CreateContext, (const ams::ssl::sf::SslVersion &version, const ams::sf::ClientProcessId &client_pid, ams::sf::Out<ams::sf::SharedPointer<ams::ssl::sf::ISslContext>> out), (version, client_pid, out)) \
     AMS_SF_METHOD_INFO(C, H, 2, Result, GetCertificates, (const ams::sf::InArray<ams::ssl::sf::CaCertificateId> &ids, ams::sf::Out<u32> certificates_count, const ams::sf::OutBuffer &certificates), (ids, certificates_count, certificates)) \
-    AMS_SF_METHOD_INFO(C, H, 5, Result, SetInterfaceVersion, (u32 version), (version), hos::Version_3_0_0) \
     AMS_SF_METHOD_INFO(C, H, 100, Result, CreateContextForSystem, (const ams::ssl::sf::SslVersion &version, const ams::sf::ClientProcessId &client_pid, ams::sf::Out<ams::sf::SharedPointer<ams::ssl::sf::ISslContextForSystem>> out), (version, client_pid, out)) \
 
 AMS_SF_DEFINE_MITM_INTERFACE(ams::ssl::sf, ISslServiceForSystem, AMS_INTERFACE_ISSLSERVICEFORSYSTEM_INFO, 0xA864049E)
@@ -32,19 +32,17 @@ AMS_SF_DEFINE_MITM_INTERFACE(ams::ssl::sf, ISslServiceForSystem, AMS_INTERFACE_I
 namespace ams::ssl::sf::impl {
     class SslServiceForSystemImpl : ams::sf::MitmServiceImplBase {
         private:
+            const nextendo::pki::ClientOptions m_pki_options;
             bool m_should_dump_traffic;
             PcapLinkType m_link_type;
             Span<uint8_t> m_ca_certificate_public_key_der;
         public:
-            SslServiceForSystemImpl(std::shared_ptr<::Service> &&s, const sm::MitmProcessInfo &c, bool should_dump_traffic, PcapLinkType link_type, Span<uint8_t> ca_certificate_public_key_der) : MitmServiceImplBase(std::move(s), c), m_should_dump_traffic(should_dump_traffic), m_link_type(link_type), m_ca_certificate_public_key_der(ca_certificate_public_key_der) { /* ... */ }
+            SslServiceForSystemImpl(std::shared_ptr<::Service> &&s, const sm::MitmProcessInfo &c, bool should_dump_traffic, PcapLinkType link_type, Span<uint8_t> ca_certificate_public_key_der, nextendo::pki::ClientOptions pki_options) : MitmServiceImplBase(std::move(s), c), m_pki_options(pki_options), m_should_dump_traffic(should_dump_traffic), m_link_type(link_type), m_ca_certificate_public_key_der(ca_certificate_public_key_der) { /* ... */ }
 
             static bool ShouldMitm(const ams::sm::MitmProcessInfo &client_info) {
-                AMS_LOG("ShouldMitm SYSTEM pid: %lx tid: %lx\n", (u64)client_info.process_id, (u64)client_info.program_id);
-
-                return g_should_mitm_all;
+                return ShouldMitmProgram(client_info.program_id, true);
             }
 
-            Result SetInterfaceVersion(u32 version);
             Result CreateContext(const ams::ssl::sf::SslVersion &version, const ams::sf::ClientProcessId &client_pid, ams::sf::Out<ams::sf::SharedPointer<ams::ssl::sf::ISslContext>> out);
             Result GetCertificates(const ams::sf::InArray<ams::ssl::sf::CaCertificateId> &ids, ams::sf::Out<u32> certificates_count, const ams::sf::OutBuffer &certificates);
             Result GetCertificateBufSize(const ams::sf::InArray<ams::ssl::sf::CaCertificateId> &ids, ams::sf::Out<u32> buffer_size);

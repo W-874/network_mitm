@@ -1,6 +1,7 @@
 #pragma once
 #include <stratosphere.hpp>
 #include "networkmitm_ssl_types.hpp"
+#include "networkmitm_pki_policy.hpp"
 #include "networkmitm_ssl_connection_impl.hpp"
 
 #define AMS_INTERFACE_ISSLCONTEXTFORSYSTEM_INFO(C, H) \
@@ -30,9 +31,10 @@ namespace ams::ssl::sf::impl {
             sm::MitmProcessInfo m_client_info;
             bool m_should_dump_traffic;
             PcapLinkType m_link_type;
-            u64 m_context_id;
+            const u64 m_context_id;
+            const nextendo::pki::ClientOptions m_pki_options;
         public:
-            SslContextForSystemImpl(std::unique_ptr<::Service> &&s, const sm::MitmProcessInfo &c, bool should_dump_traffic, PcapLinkType link_type, u64 context_id) : m_forward_service(std::move(s)), m_client_info(c), m_should_dump_traffic(should_dump_traffic), m_link_type(link_type), m_context_id(context_id) { /* ... */ }
+            SslContextForSystemImpl(std::unique_ptr<::Service> &&s, const sm::MitmProcessInfo &c, bool should_dump_traffic, PcapLinkType link_type, u64 context_id, nextendo::pki::ClientOptions pki_options) : m_forward_service(std::move(s)), m_client_info(c), m_should_dump_traffic(should_dump_traffic), m_link_type(link_type), m_context_id(context_id), m_pki_options(pki_options) { /* ... */ }
             ~SslContextForSystemImpl() { serviceClose(m_forward_service.get()); }
 
             Result SetOption(const ams::ssl::sf::OptionType &option, u32 value);

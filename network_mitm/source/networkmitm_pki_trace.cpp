@@ -6,7 +6,6 @@
 #include <cstring>
 
 namespace ams::ssl::sf::impl {
-bool g_trace_internal_pki = false;
 namespace {
 std::atomic<u64> g_next_context{1};
 constinit os::SdkMutex g_trace_mutex;
@@ -31,13 +30,8 @@ void Append(const char *line, size_t size) {
 
 u64 AllocateTraceContextId() { return g_next_context.fetch_add(1); }
 
-void InitializePkiTrace(bool force) {
-    u8 enabled = 0;
-    u64 size = 0;
-    const auto rc_setting = ::setsysGetSettingsItemValue("network_mitm", "trace_internal_pki",
-                                                       &enabled, sizeof(enabled), &size);
-    g_trace_internal_pki = force || (R_SUCCEEDED(rc_setting) && size == sizeof(enabled) && enabled != 0);
-    if (!g_trace_internal_pki) return;
+void InitializePkiTrace(bool enabled) {
+    if (!enabled) return;
     char path[128];
     util::SNPrintf(path, sizeof(path), "%s:/network_mitm",
                    fs::impl::SdCardFileSystemMountName);
@@ -58,9 +52,9 @@ void InitializePkiTrace(bool force) {
     Append(header, sizeof(header) - 1);
 }
 
-void TracePki(const sm::MitmProcessInfo &client, u64 context_id,
+void TracePki(bool enabled, const sm::MitmProcessInfo &client, u64 context_id,
               const char *event, const char *format, ...) {
-    if (!g_trace_internal_pki) return;
+    if (!enabled) return;
     char detail[256];
     va_list args;
     va_start(args, format);

@@ -3,11 +3,10 @@
 #include <stratosphere.hpp>
 
 namespace ams::ssl::sf::impl {
-extern bool g_trace_internal_pki;
 u64 AllocateTraceContextId();
-void InitializePkiTrace(bool force = false);
+void InitializePkiTrace(bool enabled);
 // Metadata only. Never pass buffer contents, hostnames or credentials here.
-void TracePki(const sm::MitmProcessInfo &client, u64 context_id,
+void TracePki(bool enabled, const sm::MitmProcessInfo &client, u64 context_id,
               const char *event, const char *format, ...)
-    __attribute__((format(printf, 4, 5)));
+    __attribute__((format(printf, 5, 6)));
 }

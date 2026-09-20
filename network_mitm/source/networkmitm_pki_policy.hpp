@@ -10,11 +10,40 @@ struct Policy {
     bool enabled = false;
     std::array<std::uint64_t, MaxPrograms> programs{};
     std::size_t count = 0;
-    bool Allows(std::uint64_t program, std::uint32_t type) const {
-        if (!enabled || type != 1 || program == 0) return false;
+    bool Contains(std::uint64_t program) const {
+        if (program == 0) return false;
         for (std::size_t i = 0; i < count; ++i)
             if (programs[i] == program) return true;
         return false;
+    }
+    bool Allows(std::uint64_t program, std::uint32_t type) const {
+        return enabled && type == 1 && Contains(program);
+    }
+};
+
+struct ClientOptions {
+    bool trace = false;
+    bool fallback = false;
+};
+
+struct RoutingPolicy {
+    // Missing configuration must not reactivate v1's broad MITM behavior.
+    bool targeted = true;
+    bool trace_requested = false;
+    Policy mitm_programs;
+    Policy fallback_programs;
+    bool Targets(std::uint64_t program) const { return mitm_programs.Contains(program); }
+    bool ShouldMitm(std::uint64_t program, bool system_service, bool application,
+                    bool legacy_mitm_all) const {
+        if (targeted) return Targets(program);
+        return legacy_mitm_all || (!system_service && application);
+    }
+    ClientOptions Options(std::uint64_t program) const {
+        if (!targeted || !Targets(program)) return {};
+        const bool fallback = fallback_programs.Allows(program, 1);
+        // Error metadata is retained when fallback is enabled, even if tracing
+        // was explicitly off. This cannot expand the selected client set.
+        return {trace_requested || fallback, fallback};
     }
 };
 

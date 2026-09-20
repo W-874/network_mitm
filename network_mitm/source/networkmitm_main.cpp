@@ -267,6 +267,8 @@ Result ServerManager::OnNeedsToAccept(int port_index, Server *server) {
     server->AcknowledgeMitmSession(std::addressof(forward_service),
                                    std::addressof(client_info));
 
+    const auto pki_options = GetClientPkiOptions(client_info.program_id);
+
     switch (port_index) {
     case PortIndex_SslMitm:
         AMS_LOG("AcceptMitmImpl SSL titleid: %lx\n",
@@ -276,7 +278,7 @@ Result ServerManager::OnNeedsToAccept(int port_index, Server *server) {
             ams::sf::CreateSharedObjectEmplaced<ISslService, SslServiceImpl>(
                 decltype(forward_service)(forward_service), client_info,
                 g_should_dump_ssl_traffic, g_link_type,
-                g_ca_certificate_public_key_der),
+                g_ca_certificate_public_key_der, pki_options),
             forward_service));
     case PortIndex_SslSystemMitm:
         AMS_LOG("AcceptMitmImpl SSL SYSTEM titleid: %lx\n",
@@ -287,7 +289,7 @@ Result ServerManager::OnNeedsToAccept(int port_index, Server *server) {
                                                 SslServiceForSystemImpl>(
                 decltype(forward_service)(forward_service), client_info,
                 g_should_dump_ssl_traffic, g_link_type,
-                g_ca_certificate_public_key_der),
+                g_ca_certificate_public_key_der, pki_options),
             forward_service));
         AMS_UNREACHABLE_DEFAULT_CASE();
     }
@@ -380,74 +382,15 @@ Result ReadFileToBuffer(const char *path, void *buffer, size_t buffer_size,
 
 void Initialize(bool should_dump_ssl_traffic, bool should_mitm_all,
                 bool should_disable_ssl_verification) {
-    g_ca_certificate_public_key_pem = MakeSpan(
-        g_ca_public_key_storage_pem, sizeof(g_ca_public_key_storage_pem));
+    AMS_UNUSED(should_dump_ssl_traffic, should_disable_ssl_verification);
     InitializeDevicePkiPolicy();
-    // Diagnostic mode must not capture credentials or change server trust.
-    g_should_dump_ssl_traffic = should_dump_ssl_traffic && !g_trace_internal_pki;
+    g_should_dump_ssl_traffic = false;
+    g_should_disable_ssl_verification = false;
     g_should_mitm_all = should_mitm_all;
-    g_should_disable_ssl_verification = should_disable_ssl_verification && !g_trace_internal_pki;
     g_link_type = PcapLinkType::User;
-
-    char pcap_link_type[16];
-    auto read_size = settings::fwdbg::GetSettingsItemValue(
-        pcap_link_type, sizeof(pcap_link_type), "network_mitm",
-        "pcap_link_type");
-
-    if (read_size != 0) {
-        if (!strcmp(pcap_link_type, "user")) {
-            g_link_type = PcapLinkType::User;
-        } else if (!strcmp(pcap_link_type, "ip")) {
-            g_link_type = PcapLinkType::Ip;
-        } else if (!strcmp(pcap_link_type, "ethernet")) {
-            g_link_type = PcapLinkType::Ethernet;
-        }
-    }
-
-    if (g_trace_internal_pki) return;
-
-    char setting_path[ams::fs::EntryNameLengthMax + 1];
-    char custom_cert_path[ams::fs::EntryNameLengthMax + 1];
-    read_size = settings::fwdbg::GetSettingsItemValue(
-        setting_path, sizeof(setting_path), "network_mitm",
-        "custom_ca_public_cert");
-    if (read_size != 0) {
-        util::SNPrintf(custom_cert_path, sizeof(custom_cert_path), "%s:/%s",
-                       ams::fs::impl::SdCardFileSystemMountName, setting_path);
-        AMS_LOG("Attempting to load custom CA public cert at %s\n",
-                custom_cert_path);
-
-        size_t out_size;
-
-        if (R_SUCCEEDED(ReadFileToBuffer(
-                custom_cert_path, g_ca_certificate_public_key_pem.data(),
-                g_ca_certificate_public_key_pem.size_bytes(), out_size))) {
-            g_ca_certificate_public_key_pem =
-                MakeSpan(g_ca_public_key_storage_pem, out_size);
-
-            size_t der_cert_size;
-            Span<uint8_t> temp_der =
-                MakeSpan(g_ca_public_key_storage_der,
-                         sizeof(g_ca_public_key_storage_der));
-            if (!ConvertPemToDer(g_ca_certificate_public_key_pem, temp_der,
-                                 der_cert_size)) {
-                AMS_LOG("Cannot convert CA to DER!\n");
-            } else {
-                g_ca_certificate_public_key_der =
-                    MakeSpan(g_ca_public_key_storage_der, der_cert_size);
-                AMS_LOG("Custom CA public cert at %s was loaded\n",
-                        custom_cert_path);
-            }
-        } else {
-            AMS_LOG("Failed to load custom CA public cert at %s\n",
-                    custom_cert_path);
-        }
-    } else {
-        AMS_LOG("No custom CA provided.\n");
-        AMS_LOG("To provide the public cert, set \"custom_ca_public_cert = "
-                "str!my_ca.pem\" in system_settings.ini\n");
-    }
+    // Deliberately never load custom_ca_public_cert in this build.
 }
+
 } // namespace ssl::sf::impl
 
 void Main() {
@@ -474,8 +417,10 @@ void Main() {
     Initialize(should_dump_ssl_traffic, should_mitm_all,
                should_disable_ssl_verification);
 
-    if (should_mitm_all) {
-        AMS_LOG("MITM enabled on all users\n");
+    if (g_targeted_device_pki_mode) {
+        AMS_LOG("Targeted device PKI mode: only mitm_program_ids; should_mitm_all ignored\n");
+    } else if (should_mitm_all) {
+        AMS_LOG("Legacy root MITM enabled; device PKI experiment disabled\n");
     }
 
     if (g_should_disable_ssl_verification) {
@@ -493,7 +438,7 @@ void Main() {
 
     if (hos::GetVersion() >= hos::Version_15_0_0) {
         R_ABORT_UNLESS(
-            (g_server_manager_for_system.RegisterMitmServer<SslServiceImpl>(
+            (g_server_manager_for_system.RegisterMitmServer<SslServiceForSystemImpl>(
                 PortIndex_SslSystemMitm, MitmSslSystemServiceName)));
     }
 

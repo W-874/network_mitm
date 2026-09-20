@@ -16,7 +16,6 @@
 #include "networkmitm_ssl_connection_impl.hpp"
 #include "networkmitm_utils.hpp"
 #include "shim/ssl_shim.h"
-#include "networkmitm_pki_trace.hpp"
 #include <stratosphere.hpp>
 
 namespace ams::ssl::sf::impl {
@@ -45,13 +44,7 @@ Result SslConnectionImpl::SetVerifyOptionReal(
     R_SUCCEED();
 }
 
-Result
-SslConnectionImpl::SetVerifyOption(const ams::ssl::sf::VerifyOption &option) {
-    if (g_should_disable_ssl_verification) {
-        m_requested_option = option;
-        R_SUCCEED();
-    }
-
+Result SslConnectionImpl::SetVerifyOption(const ams::ssl::sf::VerifyOption &option) {
     return SetVerifyOptionReal(option);
 }
 
@@ -78,16 +71,8 @@ Result SslConnectionImpl::GetHostName(ams::sf::Out<u32> hostname_length,
     R_SUCCEED();
 }
 
-Result SslConnectionImpl::GetVerifyOption(
-    ams::sf::Out<ams::ssl::sf::VerifyOption> option) {
-    ams::ssl::sf::VerifyOption returned_value;
-    R_TRY(sslConnectionGetVerifyOption_sfMitm(m_forward_service.get(),
-                                              (u32 *)&returned_value));
-
-    option.SetValue(g_should_disable_ssl_verification ? m_requested_option
-                                                      : returned_value);
-
-    R_SUCCEED();
+Result SslConnectionImpl::GetVerifyOption(ams::sf::Out<ams::ssl::sf::VerifyOption> option) {
+    return sslConnectionGetVerifyOption_sfMitm(m_forward_service.get(), reinterpret_cast<u32 *>(option.GetPointer()));
 }
 
 Result SslConnectionImpl::GetIoMode(ams::sf::Out<ams::ssl::sf::IoMode> mode) {
@@ -98,24 +83,20 @@ Result SslConnectionImpl::GetIoMode(ams::sf::Out<ams::ssl::sf::IoMode> mode) {
 }
 
 Result SslConnectionImpl::DoHandshake() {
-    TracePki(m_client_info, m_context_id, "DoHandshake", "phase=begin conn=%p", static_cast<void *>(this));
-    const Result rc = sslConnectionDoHandshake_sfMitm(m_forward_service.get());
-    TracePki(m_client_info, m_context_id, "DoHandshake", "conn=%p forward_result=0x%08X",
-             static_cast<void *>(this), rc.GetValue());
-    return rc;
+    R_TRY(sslConnectionDoHandshake_sfMitm(m_forward_service.get()));
+
+    R_SUCCEED();
 }
 
 Result SslConnectionImpl::DoHandshakeGetServerCert(
     ams::sf::Out<u32> buffer_size, ams::sf::Out<u32> certificates_count,
     const ams::sf::OutBuffer &server_cert_buffer) {
-    TracePki(m_client_info, m_context_id, "DoHandshakeGetServerCert", "phase=begin conn=%p", static_cast<void *>(this));
-    const Result rc = sslConnectionDoHandshakeGetServerCert_sfMitm(
+    R_TRY(sslConnectionDoHandshakeGetServerCert_sfMitm(
         m_forward_service.get(), buffer_size.GetPointer(),
         certificates_count.GetPointer(), server_cert_buffer.GetPointer(),
-        server_cert_buffer.GetSize());
-    TracePki(m_client_info, m_context_id, "DoHandshakeGetServerCert", "conn=%p forward_result=0x%08X",
-             static_cast<void *>(this), rc.GetValue());
-    return rc;
+        server_cert_buffer.GetSize()));
+
+    R_SUCCEED();
 }
 
 Result SslConnectionImpl::Read(ams::sf::Out<u32> read_count,
@@ -124,10 +105,6 @@ Result SslConnectionImpl::Read(ams::sf::Out<u32> read_count,
                                    read_count.GetPointer(), buffer.GetPointer(),
                                    buffer.GetSize()));
 
-    if (m_writer != nullptr) {
-        m_writer->Write(PcapDirection::Input, buffer.GetPointer(),
-                        read_count.GetValue());
-    }
 
     R_SUCCEED();
 }
@@ -138,10 +115,6 @@ Result SslConnectionImpl::Write(const ams::sf::InBuffer &buffer,
                                     buffer.GetPointer(), buffer.GetSize(),
                                     write_count.GetPointer()));
 
-    if (m_writer != nullptr) {
-        m_writer->Write(PcapDirection::Output, buffer.GetPointer(),
-                        write_count.GetValue());
-    }
 
     R_SUCCEED();
 }
@@ -233,15 +206,7 @@ SslConnectionImpl::SetOptionReal(bool value,
     R_SUCCEED();
 }
 
-Result SslConnectionImpl::SetOption(bool value,
-                                    const ams::ssl::sf::OptionType &option) {
-    if (g_should_disable_ssl_verification &&
-        option == ams::ssl::sf::OptionType::SkipDefaultVerify) {
-        m_requested_default_verify = value;
-        value =
-            true; // force SkipDefaultVerify on, even when requested disabled
-    }
-
+Result SslConnectionImpl::SetOption(bool value, const ams::ssl::sf::OptionType &option) {
     return SetOptionReal(value, option);
 }
 
@@ -253,20 +218,8 @@ Result SslConnectionImpl::GetOptionReal(const ams::ssl::sf::OptionType &value,
     R_SUCCEED();
 }
 
-Result SslConnectionImpl::GetOption(const ams::ssl::sf::OptionType &value,
-                                    ams::sf::Out<bool> option) {
-    bool returned_value;
-    R_TRY(sslConnectionGetOption_sfMitm(
-        m_forward_service.get(), static_cast<u32>(value), &returned_value));
-
-    if (g_should_disable_ssl_verification &&
-        value == ams::ssl::sf::OptionType::SkipDefaultVerify) {
-        option.SetValue(m_requested_default_verify);
-    } else {
-        option.SetValue(returned_value);
-    }
-
-    R_SUCCEED();
+Result SslConnectionImpl::GetOption(const ams::ssl::sf::OptionType &value, ams::sf::Out<bool> option) {
+    return GetOptionReal(value, option);
 }
 
 Result SslConnectionImpl::GetVerifyCertErrors(ams::sf::Out<u32> unk0,
@@ -335,15 +288,7 @@ SslConnectionImpl::SetPrivateOptionReal(const ams::ssl::sf::OptionType &option,
                                                 static_cast<u32>(option));
 }
 
-Result
-SslConnectionImpl::SetPrivateOption(const ams::ssl::sf::OptionType &option,
-                                    u32 value) {
-    if (g_should_disable_ssl_verification &&
-        option == ams::ssl::sf::OptionType::SkipDefaultVerify) {
-        m_requested_default_verify = value;
-        value = 1; // force SkipDefaultVerify on, even when requested disabled
-    }
-
+Result SslConnectionImpl::SetPrivateOption(const ams::ssl::sf::OptionType &option, u32 value) {
     return SetPrivateOptionReal(option, value);
 }
 

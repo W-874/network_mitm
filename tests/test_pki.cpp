@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 #include "networkmitm_pki_policy.hpp"
+#include "networkmitm_account_link_diagnostic.hpp"
 #include "networkmitm_synthetic_pki.hpp"
 #include <cassert>
 #include <cstdlib>
@@ -10,49 +11,45 @@
 using namespace nextendo::pki;
 
 void TestPolicy() {
+    constexpr std::uint64_t Nim = NimProgramId;
+    constexpr std::uint64_t Am = 0x0100000000000023ULL;
     Policy p;
-    assert(!p.Allows(0x0100000000001234ULL, 1));
+    assert(!p.Allows(Nim, 1));
     p.enabled = true;
     assert(ParsePrograms(p, nullptr, 0));
-    assert(!p.Allows(0x0100000000001234ULL, 1));
+    assert(!p.Allows(Nim, 1));
     auto parse = [&](const std::string &s) { return ParsePrograms(p, s.data(), s.size()); };
-    assert(parse(" 0100000000001234, 010000000000ABCD "));
-    assert(p.count == 2);
-    assert(p.Allows(0x0100000000001234ULL, 1));
-    assert(p.Allows(0x010000000000ABCDULL, 1));
-    assert(!p.Allows(0x0100000000001234ULL, 0));
-    assert(!p.Allows(0x0100000000001234ULL, 2));
-    assert(!p.Allows(0x0100000000001234ULL, 0xFFFFFFFF));
-    assert(!p.Allows(0x0100000000009999ULL, 1));
+    assert(parse(" 0100000000000025 "));
+    assert(p.count == 1);
+    assert(p.Allows(Nim, 1));
+    assert(!p.Allows(Nim, 0));
+    assert(!p.Allows(Nim, 2));
+    assert(!p.Allows(Nim, 0xFFFFFFFF));
+    assert(!p.Allows(Am, 1));
+    // Defense in depth: even a directly constructed policy cannot target AM.
+    p.programs[0] = Am;
+    assert(!p.Allows(Am, 1));
     p.enabled = false;
-    assert(!p.Allows(0x0100000000001234ULL, 1));
+    assert(!p.Allows(Nim, 1));
     p.enabled = true;
-    for (const auto *bad : {"*", "0x0100000000001234", "010000000000123", "01000000000012345",
-            "0000000000000000", "0100000000001234,", ",0100000000001234",
-            "0100000000001234,0100000000001234", "0100000000001234;010000000000abcd",
-            "0100000000001234,010000000000ZZZZ"}) {
-        assert(parse("0100000000001234"));
+    for (const auto *bad : {"*", "0x0100000000000025", "010000000000002", "01000000000000255",
+            "0000000000000000", "0100000000000025,", ",0100000000000025",
+            "0100000000000025,0100000000000025", "0100000000000025,0100000000000023",
+            "0100000000000025;0100000000000023", "01000000000000ZZ", "0100000000000023"}) {
+        assert(parse("0100000000000025"));
         assert(!parse(bad));
         assert(p.count == 0); // no valid prefix survives an invalid suffix
-        assert(!p.Allows(0x0100000000001234ULL, 1));
+        assert(!p.Allows(Nim, 1));
     }
-    std::string many;
-    for (unsigned i=1; i<=16; ++i) {
-        char id[17]; std::snprintf(id, sizeof(id), "%016X", i);
-        if (i>1) many += ',';
-        many += id;
-    }
-    assert(parse(many) && p.count == 16);
-    assert(!parse(many + ",0000000000000011") && p.count == 0);
-    const char terminated[] = "0100000000001234";
+    const char terminated[] = "0100000000000025";
     assert(ParsePrograms(p, terminated, sizeof(terminated)));
-    std::string embedded = std::string(terminated) + '\0' + ",0100000000004321";
+    std::string embedded = std::string(terminated) + '\0' + ",0100000000000023";
     assert(!parse(embedded));
     // Exhaust malformed lengths/bytes without leaking a previous selection.
     for (unsigned n=0; n<1024; ++n) {
         std::string fuzz(n, static_cast<char>(n & 255));
         parse(fuzz);
-        assert(p.count <= MaxPrograms);
+        assert(p.count <= MaxPrograms && !p.Allows(Am, 1));
     }
 }
 
@@ -68,8 +65,14 @@ struct FakeBackend {
         ++originals; calls.emplace_back("original"); id = original_id;
         return original_result;
     }
+    std::uint32_t ForwardOriginal(std::uint32_t type, std::uint64_t *id) {
+        return ForwardOriginal(type, *id);
+    }
     void LogOriginal(std::uint32_t, std::uint32_t rc, std::uint64_t) {
         stages.emplace_back("original"); results.push_back(rc);
+    }
+    void LogOriginal(std::uint32_t type, std::uint32_t rc) {
+        LogOriginal(type, rc, 0);
     }
     std::uint32_t generate_result = 0, import_result = 0;
     std::uint32_t cert_length = 987, key_length = 1234;
@@ -152,8 +155,10 @@ void TestRouting() {
     assert(p.targeted);
     for (auto program : {Nim, Am, Game}) {
         for (bool system : {false, true}) {
-            for (bool legacy_all : {false, true})
-                assert(!p.ShouldMitm(program, system, program == Game, legacy_all));
+            for (bool legacy_all : {false, true}) {
+                const auto service = system ? ServiceRoute::SystemSsl : ServiceRoute::OrdinarySsl;
+                assert(!p.ShouldMitm(program, service, program == Game, legacy_all));
+            }
         }
     }
     const char nim[] = "0100000000000025";
@@ -163,9 +168,10 @@ void TestRouting() {
     assert(ParsePrograms(p.fallback_programs, nim, sizeof(nim)));
     for (bool system : {false, true}) {
         for (bool legacy_all : {false, true}) {
-            assert(p.ShouldMitm(Nim, system, false, legacy_all) == system);
+            const auto service = system ? ServiceRoute::SystemSsl : ServiceRoute::OrdinarySsl;
+            assert(p.ShouldMitm(Nim, service, false, legacy_all) == system);
             for (auto program : std::array<std::uint64_t, 4>{Am, Game, 0x010000000000000FULL, 0x0100000000000033ULL}) {
-                assert(!p.ShouldMitm(program, system, program == Game, legacy_all));
+                assert(!p.ShouldMitm(program, service, program == Game, legacy_all));
                 const auto options = p.Options(program);
                 assert(!options.trace && !options.fallback);
             }
@@ -178,20 +184,56 @@ void TestRouting() {
     assert(!p.Options(Nim).trace && !p.Options(Nim).fallback);
     p.fallback_programs.enabled = true;
     const char only_am[] = "0100000000000023";
-    assert(ParsePrograms(p.fallback_programs, only_am, sizeof(only_am)));
+    assert(!ParsePrograms(p.fallback_programs, only_am, sizeof(only_am)));
     assert(!p.Options(Nim).fallback && !p.Options(Am).fallback); // both lists required
     p.targeted = false;
-    assert(!p.ShouldMitm(Nim, true, false, false));
-    assert(!p.ShouldMitm(Nim, true, false, true));
-    assert(!p.ShouldMitm(Game, false, true, false));
-    assert(!p.ShouldMitm(Game, true, true, false));
+    assert(!p.ShouldMitm(Nim, ServiceRoute::SystemSsl, false, false));
+    assert(!p.ShouldMitm(Nim, ServiceRoute::SystemSsl, false, true));
+    assert(!p.ShouldMitm(Game, ServiceRoute::OrdinarySsl, true, false));
+    assert(!p.ShouldMitm(Game, ServiceRoute::SystemSsl, true, false));
     assert(!p.Options(Nim).trace && !p.Options(Nim).fallback);
-    // An additional program can be explicitly configured without changing code.
+    // Any configuration that names another program fails closed.
     p.targeted = true;
     const char two[] = "0100000000000025,0100000000000023";
-    assert(ParsePrograms(p.mitm_programs, two, sizeof(two)));
-    assert(p.ShouldMitm(Am, true, false, false));
-    assert(p.Options(Am).fallback);
+    assert(!ParsePrograms(p.mitm_programs, two, sizeof(two)));
+    assert(!p.ShouldMitm(Nim, ServiceRoute::SystemSsl, false, false));
+    assert(!p.ShouldMitm(Am, ServiceRoute::SystemSsl, false, false));
+    assert(!p.Options(Nim).fallback && !p.Options(Am).fallback);
+}
+
+void TestAccountLinkDiagnosticRoutingAndForwarding() {
+    constexpr std::uint64_t Nim = NimProgramId;
+    RoutingPolicy p;
+    const char nim[] = "0100000000000025";
+    assert(ParsePrograms(p.mitm_programs, nim, sizeof(nim)));
+    p.account_link_diagnostic = true;
+    for (const auto candidate : AccountLinkDiagnosticProgramIds) {
+        assert(IsAccountLinkDiagnosticProgram(candidate));
+        assert(p.ShouldMitm(candidate, ServiceRoute::OrdinarySsl, false, false));
+        assert(!p.ShouldMitm(candidate, ServiceRoute::SystemSsl, false, false));
+        assert(p.ShouldTraceOrdinary(candidate));
+    }
+    assert(!p.ShouldMitm(Nim, ServiceRoute::OrdinarySsl, false, false));
+    assert(p.ShouldMitm(Nim, ServiceRoute::SystemSsl, false, true));
+    assert(!p.ShouldTraceOrdinary(Nim));
+    assert(!p.ShouldMitm(0x0100000000000023ULL, ServiceRoute::OrdinarySsl, false, true));
+    p.account_link_diagnostic = false;
+    for (const auto candidate : AccountLinkDiagnosticProgramIds)
+        assert(!p.ShouldMitm(candidate, ServiceRoute::OrdinarySsl, false, true));
+
+    // Ordinary command 8 is a literal forward: even type 1 / 0x167B cannot
+    // reach NIM's synthetic generator/importer.
+    FakeBackend failure;
+    failure.original_result = ObservedDevicePkiError;
+    std::uint64_t id = 0xAABBCCDD;
+    assert(nextendo::diagnostic::ForwardOrdinaryRegisterInternalPki(failure, 1, &id) == ObservedDevicePkiError);
+    assert(id == failure.original_id && failure.originals == 1 && failure.allocations == 0 &&
+           failure.generates == 0 && failure.imports == 0);
+    FakeBackend success;
+    id = 0;
+    assert(nextendo::diagnostic::ForwardOrdinaryRegisterInternalPki(success, 2, &id) == 0);
+    assert(id == success.original_id && success.originals == 1 && success.allocations == 0 &&
+           success.generates == 0 && success.imports == 0);
 }
 
 void TestObservedErrorTrigger() {
@@ -229,6 +271,6 @@ void TestObservedErrorTrigger() {
     }
 }
 int main() {
-    TestPolicy(); TestSynthetic(); TestRouting(); TestObservedErrorTrigger();
-    std::cout << "PASS: ssl:s-only routing, legacy broad mode rejected, per-client options, exact 0x167B trigger, original-success preservation, error propagation, allocation/length failures, key wiping\n";
+    TestPolicy(); TestSynthetic(); TestRouting(); TestAccountLinkDiagnosticRoutingAndForwarding(); TestObservedErrorTrigger();
+    std::cout << "PASS: hard service/program routing, fixed ordinary candidates, ordinary command-8 raw forwarding, NIM-only fallback, legacy broad mode rejected, exact 0x167B trigger, error propagation, allocation/length failures, key wiping\n";
 }

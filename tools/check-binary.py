@@ -48,13 +48,14 @@ def main():
     report = read_nsp(module / 'exefs.nsp')
     if report['program_id'] != '4200000000000666':
         raise ValueError('wrong module identity')
-    if (module / 'mitm.lst').read_bytes().splitlines() != [b'ssl:s']:
-        raise ValueError('ordinary ssl must not be reserved')
+    if (module / 'mitm.lst').read_bytes().splitlines() != [b'ssl', b'ssl:s']:
+        raise ValueError('account-link diagnostic must reserve exactly ssl and ssl:s')
     if not (module / 'flags/boot2.flag').is_file():
         raise ValueError('missing boot flag')
     if report['nso_bss_bytes'] >= 3 * 1024 * 1024:
-        raise ValueError('resource-v3 static-memory budget exceeded')
-    report['mitm_ports'] = ['ssl:s']
+        raise ValueError('account-link diagnostic static-memory budget exceeded')
+    report['variant'] = 'account-link-diagnostic-v1'
+    report['mitm_ports'] = ['ssl', 'ssl:s']
     if args.baseline:
         before = read_nsp(args.baseline)
         report['baseline'] = before

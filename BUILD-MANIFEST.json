@@ -1,0 +1,51 @@
+{
+  "variant": "account-link-diagnostic-v1",
+  "target": {
+    "hos": "22.5.0",
+    "atmosphere": "1.11.2",
+    "environment": "emuMMC"
+  },
+  "hardware_verified": false,
+  "fallback_default_enabled": false,
+  "default_allowlist": [],
+  "targeted_mode_default": true,
+  "recommended_mitm_program_ids": [
+    "0100000000000025"
+  ],
+  "recommended_fallback_program_ids": [
+    "0100000000000025"
+  ],
+  "original_result_trigger": "0x0000167B",
+  "scope": "NIM ssl:s fallback plus fixed-candidate ssl / ISslContext metadata-only diagnostic",
+  "mitm_ports": [
+    "ssl",
+    "ssl:s"
+  ],
+  "server_resources": {
+    "managers": 1,
+    "sessions": 16,
+    "domains": 16,
+    "objects": 256,
+    "workers": 2,
+    "pointer_bytes_per_session": 65536
+  },
+  "ordinary_ssl_diagnostic": {
+    "enable_setting": "enable_account_link_diagnostic",
+    "program_ids": [
+      "0100000000001000",
+      "0100000000001011",
+      "0100000000001042",
+      "0100000000001043"
+    ],
+    "metadata_only": true,
+    "fallback": false,
+    "records": [
+      "build marker",
+      "program ID",
+      "service",
+      "context ID",
+      "CreateContext original Result",
+      "RegisterInternalPki type and original Result"
+    ]
+  }
+}

@@ -14,10 +14,32 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "networkmitm_ssl_context_impl.hpp"
+#include "networkmitm_account_link_diagnostic.hpp"
+#include "networkmitm_pki_trace.hpp"
 #include "shim/ssl_shim.h"
 #include <stratosphere.hpp>
 
 namespace ams::ssl::sf::impl {
+namespace {
+struct OrdinaryRegisterBackend {
+    Service *context;
+    const sm::MitmProcessInfo &client;
+    u64 context_id;
+    std::uint32_t ForwardOriginal(std::uint32_t type, std::uint64_t *id) {
+        return sslContextRegisterInternalPki_sfMitm(context, type, id).GetValue();
+    }
+    void LogOriginal(std::uint32_t type, std::uint32_t result) {
+        if (result == 0) {
+            TracePki(true, client, context_id, "RegisterInternalPki",
+                     "service=ssl command=8 type=%u forward_result=0x%08X",
+                     type, result);
+        } else {
+            TracePki(true, client, context_id, "RegisterInternalPki",
+                     "service=ssl command=8 type=%u forward_result=0x%08X", type, result);
+        }
+    }
+};
+} // namespace
 Result SslContextImpl::SetOption(const ams::ssl::sf::OptionType &option,
                                  u32 value) {
     R_TRY(sslContextSetOption_sfMitm(m_forward_service.get(),
@@ -96,11 +118,13 @@ Result SslContextImpl::RemoveClientPki(u64 certificate_id) {
 
 Result SslContextImpl::RegisterInternalPki(const ams::ssl::sf::InternalPki &pki,
                                            ams::sf::Out<u64> certificate_id) {
-    R_TRY(sslContextRegisterInternalPki_sfMitm(m_forward_service.get(),
-                                               static_cast<u32>(pki),
-                                               certificate_id.GetPointer()));
-
-    R_SUCCEED();
+    // Account-link diagnostics only observe command 8. No fallback, key
+    // generation/import, or result transformation is reachable from here.
+    OrdinaryRegisterBackend backend{m_forward_service.get(), m_client_info,
+                                    m_context_id};
+    const u32 result = nextendo::diagnostic::ForwardOrdinaryRegisterInternalPki(
+        backend, static_cast<u32>(pki), certificate_id.GetPointer());
+    return Result(result);
 }
 
 Result

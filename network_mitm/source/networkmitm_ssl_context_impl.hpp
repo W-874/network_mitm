@@ -44,8 +44,10 @@ namespace ams::ssl::sf::impl {
             sm::MitmProcessInfo m_client_info;
             bool m_should_dump_traffic;
             PcapLinkType m_link_type;
+            const u64 m_context_id;
+            const bool m_diagnostic_trace;
         public:
-            SslContextImpl(std::unique_ptr<::Service> &&s, const sm::MitmProcessInfo &c, bool should_dump_traffic, PcapLinkType link_type) : m_forward_service(std::move(s)), m_client_info(c), m_should_dump_traffic(should_dump_traffic), m_link_type(link_type) { /* ... */ }
+            SslContextImpl(std::unique_ptr<::Service> &&s, const sm::MitmProcessInfo &c, bool should_dump_traffic, PcapLinkType link_type, u64 context_id, bool diagnostic_trace) : m_forward_service(std::move(s)), m_client_info(c), m_should_dump_traffic(should_dump_traffic), m_link_type(link_type), m_context_id(context_id), m_diagnostic_trace(diagnostic_trace) { /* ... */ }
             ~SslContextImpl() { serviceClose(m_forward_service.get()); }
             Result SetOption(const ams::ssl::sf::OptionType &option, u32 value);
             Result GetOption(const ams::ssl::sf::OptionType &option, ams::sf::Out<u32> value);

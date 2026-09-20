@@ -14,6 +14,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "networkmitm_ssl_for_system_service_impl.hpp"
+#include "networkmitm_ssl_service_impl.hpp"
 #include "networkmitm_utils.hpp"
 #include "networkmitm_pki_trace.hpp"
 #include "networkmitm_device_pki.hpp"
@@ -234,10 +235,12 @@ bool g_should_disable_ssl_verification;
 PcapLinkType g_link_type;
 
 enum PortIndex {
+    PortIndex_SslMitm,
     PortIndex_SslSystemMitm,
     PortIndex_Count,
 };
 
+constexpr sm::ServiceName MitmSslServiceName = sm::ServiceName::Encode("ssl");
 constexpr sm::ServiceName MitmSslSystemServiceName =
     sm::ServiceName::Encode("ssl:s");
 
@@ -271,11 +274,20 @@ Result ServerManager::OnNeedsToAccept(int port_index, Server *server) {
     server->AcknowledgeMitmSession(std::addressof(forward_service),
                                    std::addressof(client_info));
 
-    const auto pki_options = GetClientPkiOptions(client_info.program_id);
     AMS_LOG("forward_pointer_buffer_size=%u\n", static_cast<unsigned>(forward_service->pointer_buffer_size));
     TraceResourceSnapshot("accept");
 
     switch (port_index) {
+    case PortIndex_SslMitm:
+        AMS_LOG("AcceptMitmImpl SSL titleid: %lx\n", (u64)client_info.program_id);
+        R_RETURN(this->AcceptMitmImpl(
+            server,
+            ams::sf::CreateSharedObjectEmplaced<ISslService, SslServiceImpl>(
+                decltype(forward_service)(forward_service), client_info,
+                g_should_dump_ssl_traffic, g_link_type,
+                g_ca_certificate_public_key_der,
+                ShouldTraceOrdinaryProgram(client_info.program_id)),
+            forward_service));
     case PortIndex_SslSystemMitm:
         AMS_LOG("AcceptMitmImpl SSL SYSTEM titleid: %lx\n",
                 (u64)client_info.program_id);
@@ -285,7 +297,8 @@ Result ServerManager::OnNeedsToAccept(int port_index, Server *server) {
                                                 SslServiceForSystemImpl>(
                 decltype(forward_service)(forward_service), client_info,
                 g_should_dump_ssl_traffic, g_link_type,
-                g_ca_certificate_public_key_der, pki_options),
+                g_ca_certificate_public_key_der,
+                GetClientPkiOptions(client_info.program_id)),
             forward_service));
         AMS_UNREACHABLE_DEFAULT_CASE();
     }
@@ -384,7 +397,7 @@ void Main() {
                should_disable_ssl_verification);
 
     if (g_targeted_device_pki_mode) {
-        AMS_LOG("Targeted device PKI mode: only mitm_program_ids; should_mitm_all ignored\n");
+        AMS_LOG("Targeted mode: NIM ssl:s allowlist plus optional fixed ordinary diagnostic; should_mitm_all ignored\n");
     } else {
         AMS_LOG("Targeted mode disabled: no clients accepted\n");
     }
@@ -397,14 +410,15 @@ void Main() {
         AMS_LOG("SSL service traffic dumping disabled\n");
     }
 
-    // The observed caller uses ssl:s. Do not register or reserve ordinary ssl.
-    AMS_LOG("resource-v3 port=ssl:s sessions=%llu domains=%llu objects=%llu workers=%llu manager_bytes=%llu\n",
+    AMS_LOG("account-link-diagnostic-v1 ports=ssl,ssl:s sessions=%llu domains=%llu objects=%llu workers=%llu manager_bytes=%llu\n",
         static_cast<unsigned long long>(MaxSessions),
         static_cast<unsigned long long>(ServerOptions::MaxDomains),
         static_cast<unsigned long long>(ServerOptions::MaxDomainObjects),
         static_cast<unsigned long long>(TotalThreads),
         static_cast<unsigned long long>(sizeof(ServerManager)));
     TraceResourceSnapshot("before_register");
+    R_ABORT_UNLESS((g_server_manager.RegisterMitmServer<SslServiceImpl>(
+        PortIndex_SslMitm, MitmSslServiceName)));
     R_ABORT_UNLESS((g_server_manager.RegisterMitmServer<SslServiceForSystemImpl>(
         PortIndex_SslSystemMitm, MitmSslSystemServiceName)));
 

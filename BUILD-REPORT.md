@@ -1,36 +1,61 @@
-# resource-v3 build report
+# account-link-diagnostic-v1 build report
 
-The exact delivered source commit and file hashes are in BUILD-MANIFEST.json. V3 has no completed console test yet. V2 real-console PKI success and AM fatal are recorded in CRASH-ANALYSIS.md.
+This source tree contains a **controlled diagnostic**, not a released NSP.
+There is no account-link-diagnostic-v1 binary hash, ZIP, target build result,
+resource measurement, or hardware result in this tree. The previously built
+`resource-v3` package is historical evidence only and must not be renamed,
+repacked, or installed as this variant.
 
-## Toolchain and baseline
+## Scope
 
-Untouched upstream c15d659600760ac83151e38660c468244176c5b0 was built before initial edits. Baseline NSP SHA2564cc2ce3730632eb66344db81f34e64d50711fb211bca369debf3ba25691afd94.
-Unchanged Atmosphere-libs d3083af1827cd6ca2a96feb9316eb85cd01bae1f.
-Container localhost/nextendo-toolchain:20260920, IDa56fad1e99abdbab62b0e13dde080f2bb47887bb753e95cea4bd6a00a4244f95; devkitA64r30-1, gcc16.1.0-1, libnx4.12.0-1, switch-tools1.13.1-1, switch-mbedtls2.28.10-1.
+- Retains resource-v3's hardware-proven NIM (`0100000000000025`) `ssl:s`
+  fallback: original command 8 first; only type 1 plus original `0x0000167B`
+  may generate/import a real PKI ID.
+- Adds an opt-in ordinary `ssl` diagnostic for exactly qlaunch
+  (`0100000000001000`), LibAppletAuth (`0100000000001011`), systemWeb
+  (`0100000000001042`), and openWeb (`0100000000001043`). It records only the
+  build marker, program ID, service, context ID, command-0 result, and
+  command-8 type/result.
+- Ordinary `RegisterInternalPki` has no fallback: its command 8 path never
+  initiates Generate/Import. A client that explicitly issues commands 12/13
+  still receives the existing transparent forwarding behavior. The diagnostic
+  does not record hostnames, IPC/TLS buffers, account data, tokens,
+  certificates, or private keys; it does not change TLS trust, verification,
+  DNS, or handshake behavior.
+- Uses the existing single ServerManager: 16 sessions, 16 domains, 256 domain
+  objects, two workers, and a 64 KiB pointer buffer. It does not restore
+  `should_mitm_all` or add workers/resource pools.
 
-## Checks
+## Build and release gate
 
-- Clean application cross-build and NSP packaging.
-- Production routing/fallback tests with -Wall -Wextra -Werror; ASan and UBSan runs.
-- Ordinary ssl always rejected by policy; targeted=false and stale should_mitm_all=true cannot enable broad mode. Exact NIM list/type1/original0x167B gate and all earlier generation/import/error/erasure tests retained.
-- Compile-time manager size<1152KiB; sizeof(KeyAndCertParams)=0x58 and member offsets, DER enum unchanged.
-- Actual NSP PFS0/NSO/NPDM identity and memory budget checks. Startup declaration must be exactly ssl:s. BSS<3MiB and savings against v2>=8MiB. Exact values are in MEMORY-VERIFICATION.json outside the ZIP and file hashes in its manifest.
-- ZIP CRC/manifest verification; no system_settings.ini, hosts, firmware or keys in package. Source tar uses Git tracked files only; private-analysis, root Firmware and prod.keys are outside that tree.
+`BUILD-MANIFEST.json` is a reviewable source input, intentionally without
+binary or package hashes. `tools/package.py` reads and validates it, then adds
+the exact package-file hashes only after a clean target build has passed the
+binary checker. It refuses a dirty source tree or a source commit other than
+the checked-out clean HEAD. This prevents presenting an old v3 `out/` tree as
+a new diagnostic build.
 
-The manager is now0x1055C0 bytes instead of two0x4C6DF8-byte objects. Session capacity is intentionally16, with16domains and256objects; this is not a tested substitute for a system-wide proxy. Per-session pointer buffer remains65536 bytes to preserve the upstream acceptance constraint. Service worker count is2; this excludes library/internal threads.
-
-Read-only resource queries use already-permitted GetInfo/GetResourceLimit* SVCs. GetInfo ResourceLimit requires InvalidHandle and returns a new handle, which is closed on every subsequent exit. No service is contacted to raise quotas. Snapshot failures are logged without replacing PKI Results; logging-ready state is atomic across workers.
-
-Existing SDK nodiscard/LTO and legacy npdmtool warnings remain visible in build logs. Generated ACI0/ACID program identity is independently checked.
-
-## Reproduce
+Required target-environment sequence:
 
 ```sh
+network_mitm/tools/test-host.sh
 make -C network_mitm clean
-make -j8
-SANITIZER_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" tools/test-host.sh
-python3 tools/check-binary.py --sd out/sd --baseline /path/to/v2/exefs.nsp
-python3 tools/package.py --sd out/sd --output /path/to/network_mitm-nextendo-resource-v3.zip --source-commit nextendo-resource-v3
+make -C network_mitm
+python3 network_mitm/tools/check-binary.py --sd network_mitm/out/sd
+python3 network_mitm/tools/package.py \
+  --sd network_mitm/out/sd \
+  --output /path/to/network_mitm-account-link-diagnostic-v1.zip \
+  --source-commit HEAD
 ```
 
-Measured static footprint and mock tests do not establish shared kernel headroom on the user's running setup. V3's next validation is normal HOME startup, preserved PKI success and then account-flow progress. No claim of completed account linking is made.
+Only after all commands succeed may the generated ZIP and its generated
+`network_mitm/docs/BUILD-MANIFEST.json` be treated as the release artifact.
+The checker must report both ports in order: `ssl`, then `ssl:s`.
+
+## Historical records
+
+The v3 build facts, its resource measurements, and its SHA-256 values remain
+in `artifacts/resource-v3/`. They apply only to v3's `ssl:s`-only NSP. The
+earlier NIM PKI observations and AM analysis remain in `EVIDENCE-v2.md` and
+`CRASH-ANALYSIS.md`; neither proves this diagnostic build or Account Link
+completion.

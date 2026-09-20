@@ -31,12 +31,12 @@ AMS_SF_DEFINE_MITM_INTERFACE(ams::ssl::sf, ISslService, AMS_INTERFACE_ISSLSERVIC
 namespace ams::ssl::sf::impl {
     class SslServiceImpl : ams::sf::MitmServiceImplBase {
         private:
-            const nextendo::pki::ClientOptions m_pki_options;
+            const bool m_diagnostic_trace;
             bool m_should_dump_traffic;
             PcapLinkType m_link_type;
             Span<uint8_t> m_ca_certificate_public_key_der;
         public:
-            SslServiceImpl(std::shared_ptr<::Service> &&s, const sm::MitmProcessInfo &c, bool should_dump_traffic, PcapLinkType link_type, Span<uint8_t> ca_certificate_public_key_der, nextendo::pki::ClientOptions pki_options) : MitmServiceImplBase(std::move(s), c), m_pki_options(pki_options), m_should_dump_traffic(should_dump_traffic), m_link_type(link_type), m_ca_certificate_public_key_der(ca_certificate_public_key_der) { /* ... */ }
+            SslServiceImpl(std::shared_ptr<::Service> &&s, const sm::MitmProcessInfo &c, bool should_dump_traffic, PcapLinkType link_type, Span<uint8_t> ca_certificate_public_key_der, bool diagnostic_trace) : MitmServiceImplBase(std::move(s), c), m_diagnostic_trace(diagnostic_trace), m_should_dump_traffic(should_dump_traffic), m_link_type(link_type), m_ca_certificate_public_key_der(ca_certificate_public_key_der) { /* ... */ }
 
             static bool ShouldMitm(const ams::sm::MitmProcessInfo &client_info) {
                 return ShouldMitmProgram(client_info.program_id, false);

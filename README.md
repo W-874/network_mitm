@@ -1,4 +1,4 @@
-# network_mitm: Nextendo resource-v3
+# network_mitm: Account Link diagnostic v1
 
 A resource-bounded SSL Client-PKI experiment for HOS22.5.0 / Atmosphere1.11.2 / emuMMC, based on upstream c15d659600760ac83151e38660c468244176c5b0 and unchanged Atmosphere-libs d3083af1827cd6ca2a96feb9316eb85cd01bae1f.
 
@@ -6,11 +6,11 @@ A resource-bounded SSL Client-PKI experiment for HOS22.5.0 / Atmosphere1.11.2 / 
 
 V2's real console logs establish that NIM temporary PKI generation/import succeeds, but AM still fails during GRC process launch. Matching-firmware analysis and the resource repair are in [CRASH-ANALYSIS.md](CRASH-ANALYSIS.md). V1/v2 installation recommendations remain withdrawn.
 
-V3 retains the successful PKI path and reduces always-resident resources: only ssl:s, one manager,16 sessions,16 domains,256 objects and two service workers. The original64KiB per-session IPC pointer buffer remains. Normal ssl is neither reserved nor registered. A runtime allowlist still gates system clients; the supplied config names only observed NIM0100000000000025. Disabling targeted mode does not enable legacy broad interception.
+This one-time diagnostic retains v3's hardware-verified NIM `ssl:s` PKI fallback unchanged. It also reserves ordinary `ssl`, but accepts it only when `enable_account_link_diagnostic=1` and only from four fixed candidates: qlaunch (`0100000000001000`), LibAppletAuth (`0100000000001011`), systemWeb (`0100000000001042`), and openWeb (`0100000000001043`). The one manager remains at 16 sessions,16 domains,256 objects and two workers; the 64KiB per-session IPC pointer buffer remains. `should_mitm_all` cannot widen either path.
 
-Defaults: targeted=true, fallback=false, empty lists. On the selected system context, call original command8 once; only type1 and original0x167B permit command13→12 generation/import. Return the real imported ID; propagate errors; erase temporary cert/key storage. Connections forward transparently. No payload capture, custom CA or verification override.
+The ordinary path is metadata-only: it forwards `CreateContext` and `RegisterInternalPki` command8 exactly once, recording the fixed build marker, program ID, service, context ID, type and original Result. Its command8 path cannot initiate fallback generation/import or transform a Result; a client that explicitly issues commands12/13 remains transparently forwarded. It never records hostnames, buffers, account data, certificates or keys, and does not modify handshake/trust/verification behavior. On NIM's selected system context, v3's original command8→type1/0x167B-only command13→12 fallback is unchanged.
 
-Read [README-TEST.md](README-TEST.md) before installing, and keep [README-ROLLBACK.md](README-ROLLBACK.md). **Replace both exefs.nsp and mitm.lst**: an old two-port startup declaration does not match this binary. Existing correct v2 settings can be retained. Preserve Prelude Nextendo hosts and trust.
+Read [README-TEST.md](README-TEST.md) before the single diagnostic installation, and keep [README-ROLLBACK.md](README-ROLLBACK.md). **Replace both exefs.nsp and mitm.lst**: this build requires exactly `ssl` then `ssl:s`. Preserve Prelude Nextendo hosts and trust.
 
 [Current nx-dauth main](https://github.com/NextendoNetwork/nx-dauth/blob/6ba8273dfed545424e96a278d7e3506fb7e8d5e6/main.go) was verified at6ba8273: tls.NoClientCert and its own token issuance without console mac/challenge revalidation. This source assumption does not prove the deployed service version. Stop if the assumption changes.
 

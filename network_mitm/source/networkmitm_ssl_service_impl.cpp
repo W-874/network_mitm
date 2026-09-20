@@ -16,6 +16,7 @@
 #include "networkmitm_ssl_service_impl.hpp"
 #include "networkmitm_utils.hpp"
 #include "shim/ssl_shim.h"
+#include "networkmitm_pki_trace.hpp"
 #include <stratosphere.hpp>
 
 namespace ams::ssl::sf::impl {
@@ -23,9 +24,28 @@ Result SslServiceImpl::CreateContext(
     const ams::ssl::sf::SslVersion &version,
     const ams::sf::ClientProcessId &client_pid,
     ams::sf::Out<ams::sf::SharedPointer<ams::ssl::sf::ISslContext>> out) {
-    AMS_UNUSED(version, client_pid, out);
-    // The experiment does not own ordinary contexts or server trust.
-    return sm::mitm::ResultShouldForwardToSession();
+    // This service is accepted only for the fixed account-link diagnostic
+    // candidates. The wrapper remains transparent after recording command 0.
+    if (!m_diagnostic_trace) return sm::mitm::ResultShouldForwardToSession();
+    const u64 context_id = AllocateTraceContextId();
+    TracePki(true, m_client_info, context_id, "CreateContext",
+             "service=ssl command=0 phase=begin");
+    Service out_tmp;
+    const Result rc = sslCreateContext_sfMitm(
+        m_forward_service.get(), static_cast<u32>(version),
+        static_cast<u64>(client_pid.GetValue()),
+        static_cast<u64>(client_pid.GetValue()), std::addressof(out_tmp));
+    TracePki(true, m_client_info, context_id, "CreateContext",
+             "service=ssl command=0 forward_result=0x%08X", rc.GetValue());
+    R_TRY(rc);
+
+    const ams::sf::cmif::DomainObjectId target_object_id{
+        serviceGetObjectId(std::addressof(out_tmp))};
+    out.SetValue(ams::sf::CreateSharedObjectEmplaced<ISslContext, SslContextImpl>(
+                     std::make_unique<::Service>(out_tmp), m_client_info,
+                     m_should_dump_traffic, m_link_type, context_id, true),
+                 target_object_id);
+    R_SUCCEED();
 }
 
 Result SslServiceImpl::GetCertificates(

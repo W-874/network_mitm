@@ -74,15 +74,18 @@ void InitializeDevicePkiPolicy() {
     g_routing.targeted = ReadBool("targeted_device_pki_mode", true);
     g_targeted_device_pki_mode = g_routing.targeted;
     g_routing.trace_requested = ReadBool("trace_internal_pki", false);
+    g_routing.account_link_diagnostic = ReadBool("enable_account_link_diagnostic", false);
     g_routing.fallback_programs.enabled = ReadBool("enable_device_cert_fallback", false);
     const bool mitm_valid = ReadPrograms("mitm_program_ids", g_routing.mitm_programs);
     const bool fallback_valid = ReadPrograms("device_cert_fallback_program_ids", g_routing.fallback_programs);
-    InitializePkiTrace(g_routing.trace_requested || g_routing.fallback_programs.enabled);
+    InitializePkiTrace(g_routing.trace_requested || g_routing.fallback_programs.enabled ||
+                       g_routing.account_link_diagnostic);
     const sm::MitmProcessInfo self{};
     TracePki(true, self, 0, "DevicePkiPolicy",
-        "targeted=%u mitm_valid=%u mitm_count=%llu fallback_enabled=%u fallback_valid=%u fallback_count=%llu trigger=0x0000167B",
+        "variant=account-link-diagnostic-v1 targeted=%u mitm_valid=%u mitm_count=%llu ordinary_diagnostic=%u fallback_enabled=%u fallback_valid=%u fallback_count=%llu trigger=0x0000167B",
         static_cast<unsigned>(g_routing.targeted), static_cast<unsigned>(mitm_valid),
         static_cast<unsigned long long>(g_routing.mitm_programs.count),
+        static_cast<unsigned>(g_routing.account_link_diagnostic),
         static_cast<unsigned>(g_routing.fallback_programs.enabled), static_cast<unsigned>(fallback_valid),
         static_cast<unsigned long long>(g_routing.fallback_programs.count));
 }
@@ -92,13 +95,19 @@ bool ShouldTargetProgram(ncm::ProgramId program_id) {
 }
 
 bool ShouldMitmProgram(ncm::ProgramId program_id, bool system_service) {
-    return g_routing.ShouldMitm(static_cast<u64>(program_id), system_service,
+    const auto service = system_service ? nextendo::pki::ServiceRoute::SystemSsl
+                                        : nextendo::pki::ServiceRoute::OrdinarySsl;
+    return g_routing.ShouldMitm(static_cast<u64>(program_id), service,
                                ncm::IsApplicationId(program_id), g_should_mitm_all);
 }
 
 nextendo::pki::ClientOptions GetClientPkiOptions(ncm::ProgramId program_id) {
     if (!ShouldTargetProgram(program_id)) return {};
     return g_routing.Options(static_cast<u64>(program_id));
+}
+
+bool ShouldTraceOrdinaryProgram(ncm::ProgramId program_id) {
+    return g_routing.ShouldTraceOrdinary(static_cast<u64>(program_id));
 }
 
 Result RegisterSystemClientPki(Service *context, const sm::MitmProcessInfo &client,

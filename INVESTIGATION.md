@@ -1,8 +1,30 @@
-# resource-v3 更新
+# account-link-diagnostic-v1 investigation
 
-本文件保留最初接口研究。当前修复和精确AM反汇编依据以 CRASH-ANALYSIS.md 为准：仅注册ssl:s，单管理器16会话/16domain/256对象、2工作线程；targeted=false不再回到legacy广泛接管。原PKI shims和ABI不变。
+当前实现以已启动的 resource-v3 为基线，但**不是 v3 包的重命名或复用**。新版本注册
+`ssl` 与 `ssl:s` 两个端口，仍使用一个 ServerManager（16 sessions / 16 domains /
+256 objects / 2 workers / 64 KiB pointer buffer）。`should_mitm_all` 不能扩大范围。
 
-# SSL Client-PKI investigation — NIM-only v2
+`ssl:s` 仍只允许配置中精确的 NIM `0100000000000025`，其 type 1 + 原始
+`0x167B` fallback 未改变。普通 `ssl` 仅在
+`enable_account_link_diagnostic=1` 时允许四个固定候选：qlaunch
+`0100000000001000`、LibAppletAuth `0100000000001011`、systemWeb
+`0100000000001042`、openWeb `0100000000001043`。这条普通路径只记录 build marker、
+program ID、service、context ID、CreateContext 原始 Result、command 8 type 与原始
+Result；它的 RegisterInternalPki 不 fallback、不会发起 Generate/Import；客户端主动
+调用 command 12/13 时仍按既有实现透明转发。它不记录 hostname/buffer/TLS/账户内容、
+token、证书或私钥，也不改变 handshake/DNS/CA/trust/verification。
+
+必须用目标工具链重新构建并通过 `tools/check-binary.py` 后才能生成 ZIP；旧
+resource-v3 `out/` 或 ZIP 不可用。当前可验证的发布输入为
+`BUILD-MANIFEST.json`，其不包含虚构的 binary hash；实际文件 hashes 只在成功打包时
+写入 ZIP 内生成的 manifest。详见 BUILD-REPORT.md。
+
+## Historical v2/v3 investigation (not current package instructions)
+
+下列内容保留 v2/v3 的接口研究和硬件证据，便于追溯；其中关于“仅 ssl:s”、普通
+context 未注册或 v3 当前状态的表述均为历史描述，不能用于本诊断版的构建/安装判断。
+
+# SSL Client-PKI investigation — NIM-only v2 (historical)
 
 Updated 2026-09-20. Target: HOS22.5.0 / Atmosphère1.11.2 / emuMMC. V1 instrumentation produced useful NIM metadata but booted into AM fatal. V2 real console logs confirmed PKI generation/import success, but AM startup fatal persisted. V3 is the current resource repair.
 

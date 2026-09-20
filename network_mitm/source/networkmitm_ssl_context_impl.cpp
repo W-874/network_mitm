@@ -26,7 +26,7 @@ struct OrdinaryRegisterBackend {
     const sm::MitmProcessInfo &client;
     u64 context_id;
     std::uint32_t ForwardOriginal(std::uint32_t type, std::uint64_t *id) {
-        return sslContextRegisterInternalPki_sfMitm(context, type, id).GetValue();
+        return sslContextRegisterInternalPki_sfMitm(context, type, id);
     }
     void LogOriginal(std::uint32_t type, std::uint32_t result) {
         if (result == 0) {

@@ -1,8 +1,10 @@
-# Account Link fallback v2：ssl:s-only 受控测试
+# Account Link fallback v2：安装与受控测试
 
-本包保留已验证的 NIM `ssl:s` DeviceClientCertDefault fallback，并保留日志已证明成功的 Account 与 NPNS `ssl:s` type-1 路径。它**不注册 ordinary `ssl` MITM 端口**：上一轮在接受 systemWeb `0100000000001042` 的 ordinary `ssl` 后，network_mitm 自身触发了 Title ID `4200000000000666` 的 Atmosphère `abort (0xFFFE)`。因此本包只测试 system `ssl:s` fallback，不再观察 ordinary `ssl`。
+[English install guide](README-TEST.en.md) · **中文**
 
-这不是账户认证绕过，不读取 TLS/账户内容，不改 Prelude、DNS、CA、TLS verification 或身份材料。
+> **安装前必读：** [README-ROLLBACK.md](README-ROLLBACK.md) · 本指南只适用于 HOS 22.5.0 / Atmosphère 1.11.2 / emuMMC。
+
+本包只注册 `ssl:s`，不注册 ordinary `ssl`。它仅针对 NIM、Account、NPNS 三个明确 Program ID，并只对 `InternalPki` type 1、原始错误精确为 `0x0000167B` 的情况执行 original-first fallback。不会修改 Prelude、DNS、CA、TLS verification 或设备身份。
 
 ## 安装
 
@@ -33,32 +35,14 @@ should_disable_ssl_verification = u8!0x0
 5. 保持 emuMMC、Prelude Nextendo 模式及现有 hosts/信任配置。不要增加 CA、关闭 TLS verification、修改 DNS 或添加其他 Program ID。
 6. 完整重启。先确认可进入 HOME，再只进行一次 Nintendo Account 关联动作；不要安装旧的 ordinary `ssl` 诊断包。
 
-## 预期日志
+## 预期结果
 
-启动日志应显示：
+启动日志应显示 `account-link-fallback-v2 ports=ssl:s`。`network_mitm_observer.log` 只能出现 `SSL SYSTEM` 接受记录，不应出现 ordinary `SSL titleid`。
 
-```text
-account-link-fallback-v2 ports=ssl:s sessions=16 domains=16 objects=256 workers=2 manager_bytes=...
-```
+只检查 metadata-only 的 `internal_pki.log` 记录；不要记录或上传证书、私钥、token、密码、TLS payload 或账户内容。成功路径是：先调用原始 `RegisterInternalPki`，仅在 type 1 且原始结果为 `0x0000167B` 时调用 Generate/Import，并返回真实 SSL-service PkiId。
 
-`network_mitm_observer.log` 只能出现 `SSL SYSTEM` 接受记录；不应出现 ordinary `SSL titleid`。
+## 已知结果与限制
 
-`/network_mitm/internal_pki.log` 只检查以下 metadata-only 记录：
+目标环境已确认 NIM、Account、NPNS fallback 成功、Account Link 成功，以及 Mario Kart 8 Deluxe 可联机。删除已关联用户仍会报 `2002-0001`；本版本不支持、也不宣称支持该操作。
 
-```text
-program=... ctx=... CreateContextForSystem phase=...
-program=... ctx=... RegisterInternalPki phase=begin type=1
-program=... ctx=... RegisterInternalPki type=1 forward_result=0x0000167B
-program=... ctx=... fallback_generate result=0x00000000 origin=ssl_ipc
-program=... ctx=... fallback_import result=0x00000000 origin=ssl_ipc
-program=... ctx=... RegisterInternalPki phase=complete result=0x00000000
-```
-
-成功路径仍是：原始 `RegisterInternalPki(type=1)` 先调用；只有原始结果严格为 `0x0000167B` 时才调用 Generate 与 Import；成功后返回真实 SSL-service PkiId。原始成功和其他错误原样保留；不伪造 PkiId，不重试损坏身份，不改变 `RemoveClientPki`。
-
-## 判定与回滚
-
-- 本包的第一判定：不再出现 `4200000000000666` 的 ordinary `ssl` 相关 panic。
-- 第二判定：NIM、Account、NPNS 是否继续完成 system `ssl:s` 的 exact `0x167B` fallback。
-- 目标环境真机已确认 Account Link 成功，并已确认 Mario Kart 8 Deluxe 可联机；但删除已关联用户仍会报 `2002-0001`，本版本不支持、也不宣称支持该删除操作。
-- 测试结束后按 `README-ROLLBACK.md` 保存日志并移走整个模块目录；不要把该诊断包作为常驻模块。
+不要测试 Nintendo production endpoint。测试结束后按 [README-ROLLBACK.md](README-ROLLBACK.md) 回滚，并移走整个模块目录。

@@ -66,7 +66,11 @@ Use only on hardware and accounts you control, with the existing Nextendo/Prelud
 
 ## Installation and rollback
 
-Read [README-TEST.md](README-TEST.md) before installation and keep [README-ROLLBACK.md](README-ROLLBACK.md) available. Replace both `exefs.nsp` and `mitm.lst`; do not combine this module with an older ordinary-`ssl` diagnostic package. Preserve the existing Prelude hosts and trust configuration.
+## 📦 [Install guide (English)](README-TEST.en.md)
+
+Read the English install guide before installation. A [中文安装指南](README-TEST.md) is also available. Keep [README-ROLLBACK.md](README-ROLLBACK.md) available.
+
+Replace both `exefs.nsp` and `mitm.lst`; do not combine this module with an older ordinary-`ssl` diagnostic package. Preserve the existing Prelude hosts and trust configuration.
 
 The package contains only the module and public documentation. It does not include firmware, `prod.keys`, decrypted Nintendo executables, private analysis, logs, crash/fatal dumps, identity data, certificates, private keys, or user data.
 

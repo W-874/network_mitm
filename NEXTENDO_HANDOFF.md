@@ -7,9 +7,9 @@
   Prelude / Nextendo on the user's own device.
 - The current source variant is `account-link-fallback-v2`, built on the
   successful resource-v3 NIM fallback. It includes the statically proven
-  Account path and the hardware-observed NPNS `ssl:s` path; a fresh target
-  rebuild, binary/resource check, package, and NPNS hardware confirmation are
-  pending for this extension.
+  Account path and the hardware-observed NPNS `ssl:s` path. Host validation and
+  static review pass; the generated package manifest is authoritative for the
+  clean target build/package, while NPNS hardware confirmation remains pending.
 
 ## What hardware has established
 
@@ -47,8 +47,8 @@
 
 - `tools/test-host.sh`, manifest validation, and `git diff --check` pass for the
   NPNS source changes.
-- The NPNS extension is not yet target-built or packaged; old Account-only
-  output must not be reused.
+- The NPNS extension must always be target-built and packaged from the exact
+  clean HEAD; old Account-only output must not be reused.
 - `BUILD-MANIFEST.json` is source metadata only. `tools/package.py` rejects a
   dirty tree and requires a clean-HEAD target build checked by
   `tools/check-binary.py` before it generates package file hashes.

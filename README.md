@@ -16,4 +16,4 @@ Read [README-TEST.md](README-TEST.md) before the single diagnostic installation,
 
 Upstream was built untouched before the initial patch. Build using the upstream Docker recipe or the equivalent devkitPro container in BUILD-REPORT.md. tools/test-host.sh tests production policy/orchestration; tools/check-binary.py verifies the actual NSP memory budget and service declaration. GPLv2; see LICENSE.
 
-The package includes only the module and documentation. Firmware, prod.keys, decrypted Nintendo executables and private log dumps are not included. The Account/NPNS fallback v2 source is host-tested; the NPNS extension requires a fresh clean target build/package, and the boot plus hardware outcome remain separate gates.
+The package includes only the module and documentation. Firmware, prod.keys, decrypted Nintendo executables and private log dumps are not included. The Account/NPNS fallback v2 source is host-tested and statically reviewed; the generated package manifest records the exact target build/package, while boot and hardware outcome remain separate gates.

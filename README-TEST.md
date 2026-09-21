@@ -60,5 +60,5 @@ program=... ctx=... RegisterInternalPki phase=complete result=0x00000000
 
 - 本包的第一判定：不再出现 `4200000000000666` 的 ordinary `ssl` 相关 panic。
 - 第二判定：NIM、Account、NPNS 是否继续完成 system `ssl:s` 的 exact `0x167B` fallback。
-- Account/NPNS 的业务最终结果仍需单独记录，不能仅凭 fallback 成功宣称账户已关联。
+- 目标环境真机已确认 Account Link 成功，并已确认 Mario Kart 8 Deluxe 可联机；但删除已关联用户仍会报 `2002-0001`，本版本不支持、也不宣称支持该删除操作。
 - 测试结束后按 `README-ROLLBACK.md` 保存日志并移走整个模块目录；不要把该诊断包作为常驻模块。

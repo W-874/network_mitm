@@ -64,13 +64,13 @@ This project does **not**:
 
 Use only on hardware and accounts you control, with the existing Nextendo/Prelude configuration. **Do not test this release against Nintendo production endpoints.**
 
-## Installation and rollback
+## Installation
 
-## 📦 [Install guide (English)](README-TEST.en.md)
+## 📦 [Installation guide (English)](README-TEST.en.md)
 
-Read the English install guide before installation. A [中文安装指南](README-TEST.md) is also available. Keep [README-ROLLBACK.md](README-ROLLBACK.md) available.
+[中文安装指南](README-TEST.md) is also available.
 
-Replace both `exefs.nsp` and `mitm.lst`; do not combine this module with an older ordinary-`ssl` diagnostic package. Preserve the existing Prelude hosts and trust configuration.
+For a new installation, download the release ZIP, drag its folders to the SD-card root, add the documented `[network_mitm]` settings, and reboot. The package creates the required Atmosphère module paths; users do not need to place its individual files manually.
 
 The package contains only the module and public documentation. It does not include firmware, `prod.keys`, decrypted Nintendo executables, private analysis, logs, crash/fatal dumps, identity data, certificates, private keys, or user data.
 

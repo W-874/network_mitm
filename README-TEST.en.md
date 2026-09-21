@@ -1,48 +1,59 @@
-# Account Link fallback v2: Installation and controlled test
+# Installation guide
 
-**English** · [中文安装指南](README-TEST.md)
+**English** · [中文](README-TEST.md)
 
-> **Read before installation:** [README-ROLLBACK.md](README-ROLLBACK.md) · This guide is only for HOS 22.5.0 / Atmosphère 1.11.2 / emuMMC.
+For **HOS 22.5.0 / Atmosphère 1.11.2 / emuMMC** systems that already have Nextendo Prelude configured.
 
-This package registers `ssl:s` only; ordinary `ssl` is not registered. It targets exactly NIM, Account, and NPNS, and applies the original-first fallback only to `InternalPki` type 1 when the original result is exactly `0x0000167B`. It does not change Prelude, DNS, CA, TLS verification, or device identity.
+> New installations do not require you to create or back up a `4200000000000666` folder, and you do not need to place `exefs.nsp`, `mitm.lst`, or `boot2.flag` individually. Extract the complete release package as described below.
 
 ## Installation
 
-1. Fully power off the console. Back up the existing `/atmosphere/contents/4200000000000666/`, `system_settings.ini`, and this test's logs.
-2. Merge this package into the SD-card root. **Replace both `exefs.nsp` and `mitm.lst`** at `/atmosphere/contents/4200000000000666/`; keep `flags/boot2.flag`.
-3. `mitm.lst` must contain exactly one line:
+1. Download the following file from [Releases](https://github.com/W-874/network_mitm/releases/tag/v2.0.0-account-link-fallback):
 
-   ```text
-   ssl:s
+   `network_mitm-account-link-fallback-v2-system-only.zip`
+
+2. **Fully power off** the Switch, remove the SD card, and connect it to your computer.
+
+3. Open the ZIP and drag its `atmosphere` and `network_mitm` folders directly onto the **root of the SD card**. If prompted, merge the folders and replace files with the same names.
+
+   The archive creates the required paths automatically. Do not open the folders and copy individual files one by one.
+
+4. Open this file on the SD card:
+
+   `atmosphere/config/system_settings.ini`
+
+   Create the file if it does not exist. Add the configuration below. If the file already contains a `[network_mitm]` section, replace that section instead of adding a duplicate:
+
+   ```ini
+   [network_mitm]
+   enable_ssl = u8!0x1
+   targeted_device_pki_mode = u8!0x1
+   mitm_program_ids = str!0100000000000025 010000000000001E 010000000000002F
+   trace_internal_pki = u8!0x1
+   enable_device_cert_fallback = u8!0x1
+   device_cert_fallback_program_ids = str!0100000000000025 010000000000001E 010000000000002F
+   enable_account_link_diagnostic = u8!0x0
+   should_mitm_all = u8!0x0
+   should_dump_ssl_traffic = u8!0x0
+   should_disable_ssl_verification = u8!0x0
    ```
 
-4. Merge only the complete `[network_mitm]` section below; do not overwrite other settings sections:
+5. Safely eject the SD card, return it to the Switch, and boot emuMMC normally.
 
-```ini
-[network_mitm]
-enable_ssl = u8!0x1
-targeted_device_pki_mode = u8!0x1
-mitm_program_ids = str!0100000000000025 010000000000001E 010000000000002F
-trace_internal_pki = u8!0x1
-enable_device_cert_fallback = u8!0x1
-device_cert_fallback_program_ids = str!0100000000000025 010000000000001E 010000000000002F
-enable_account_link_diagnostic = u8!0x0
-should_mitm_all = u8!0x0
-should_dump_ssl_traffic = u8!0x0
-should_disable_ssl_verification = u8!0x0
-```
+6. After reaching the HOME Menu, link the Nintendo Account normally. No additional application needs to be run, and `network_mitm` does not need to be started manually.
 
-5. Keep emuMMC, Prelude Nextendo mode, and the existing hosts/trust configuration. Do not add a CA, disable TLS verification, change DNS, or add another Program ID.
-6. Reboot fully. Confirm that HOME loads, then perform only one Nintendo Account linking action. Do not install the old ordinary-`ssl` diagnostic package.
+## Notes
 
-## Expected result
+- Keep the existing Prelude hosts, DNS, and trust configuration unchanged.
+- Do not add another Program ID, CA, or TLS-verification bypass.
+- Do not use this module with Nintendo production endpoints.
+- Nintendo Account Link and Mario Kart 8 Deluxe online play have been verified.
+- Deleting an already linked user still fails with `2002-0001` and is not currently supported.
 
-The startup log should show `account-link-fallback-v2 ports=ssl:s`. `network_mitm_observer.log` should contain only `SSL SYSTEM` accept records; there should be no ordinary `SSL titleid` record.
+## Uninstalling
 
-Inspect only metadata-only `internal_pki.log` records. Do not record or upload certificates, private keys, tokens, passwords, TLS payloads, or account contents. The successful path is: call the original `RegisterInternalPki` first; only for type 1 with original result `0x0000167B`, call Generate/Import and return the real SSL-service PkiId.
+Fully power off the console, then delete this directory from the SD card:
 
-## Verified results and limitation
+`atmosphere/contents/4200000000000666/`
 
-The target environment has confirmed successful NIM, Account, and NPNS fallback paths, Nintendo Account Link, and Mario Kart 8 Deluxe online play. Deleting an already linked user still fails with `2002-0001`; this release does not support or claim support for that operation.
-
-Do not test Nintendo production endpoints. After testing, follow [README-ROLLBACK.md](README-ROLLBACK.md) and remove the entire module directory.
+Remove the complete `[network_mitm]` section from `atmosphere/config/system_settings.ini`, then reboot.

@@ -1,5 +1,5 @@
-; One-time account-link diagnostic. Merge into the existing [network_mitm]
-; section; do not replace the entire system_settings.ini file.
+; Account Link fallback v2 settings. Add this section to
+; atmosphere/config/system_settings.ini. If the section already exists, replace it.
 [network_mitm]
 enable_ssl = u8!0x1
 targeted_device_pki_mode = u8!0x1

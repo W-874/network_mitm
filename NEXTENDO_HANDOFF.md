@@ -2,7 +2,7 @@
 
 ## Snapshot
 
-- Inner repository source commit before the final release-document checkpoint: `152a45d`.
+- Inner repository source commit: recorded in the generated package manifest after the final clean-HEAD rebuild.
 - Baseline hardware target: HOS 22.5.0 / Atmosphère 1.11.2 / emuMMC /
   Prelude / Nextendo on the user's own device.
 - The current source variant is `account-link-fallback-v2`, built on the

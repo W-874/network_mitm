@@ -47,7 +47,7 @@ void InitializePkiTrace(bool enabled) {
         return;
     }
     g_trace_ready = true;
-    const char header[] = "\n# network_mitm account-link-diagnostic-v1 boot build=" GIT_REVISION
+    const char header[] = "\n# network_mitm account-link-fallback-v2 boot build=" GIT_REVISION
                           " timestamp=monotonic_ms cap=8MiB metadata_only=1\n";
     Append(header, sizeof(header) - 1);
 }

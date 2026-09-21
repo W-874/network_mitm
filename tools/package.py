@@ -24,24 +24,34 @@ def load_manifest_input():
         'default_allowlist', 'targeted_mode_default',
         'recommended_mitm_program_ids', 'recommended_fallback_program_ids',
         'original_result_trigger', 'scope', 'mitm_ports', 'server_resources',
-        'ordinary_ssl_diagnostic',
+        'ordinary_ssl_diagnostic', 'system_ssl_fallback',
     }
     missing = required.difference(data)
     if missing:
         raise ValueError(f'manifest input missing: {sorted(missing)}')
     if 'files' in data:
         raise ValueError('source manifest input must not contain package or binary hashes')
-    if data['variant'] != 'account-link-diagnostic-v1':
+    if data['variant'] != 'account-link-fallback-v2':
         raise ValueError('wrong manifest input variant')
     if data['mitm_ports'] != ['ssl', 'ssl:s']:
         raise ValueError('wrong manifest input ports')
+    fallback = data['system_ssl_fallback']
+    if fallback != {
+        'program_ids': ['0100000000000025', '010000000000001E'],
+        'type': 1,
+        'trigger': '0x0000167B',
+        'original_first': True,
+        'real_pki_id_only': True,
+        'account_hardware_verified': False,
+    }:
+        raise ValueError('wrong system SSL fallback manifest scope')
     return data
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--sd', type=Path, default=ROOT / 'out/sd')
     parser.add_argument('--output', type=Path)
-    parser.add_argument('--variant', choices=['account-link-diagnostic-v1'], default='account-link-diagnostic-v1')
+    parser.add_argument('--variant', choices=['account-link-fallback-v2'], default='account-link-fallback-v2')
     parser.add_argument('--source-commit')
     parser.add_argument('--check-input', action='store_true',
                         help='validate only the clean-tree manifest input; do not read or package out/sd')

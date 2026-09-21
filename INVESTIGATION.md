@@ -1,4 +1,4 @@
-# account-link-diagnostic-v1 investigation
+# account-link-fallback-v2 investigation
 
 当前实现以已启动的 resource-v3 为基线，但**不是 v3 包的重命名或复用**。新版本注册
 `ssl` 与 `ssl:s` 两个端口，仍使用一个 ServerManager（16 sessions / 16 domains /

@@ -1,5 +1,5 @@
 {
-  "variant": "account-link-diagnostic-v1",
+  "variant": "account-link-fallback-v2",
   "target": {
     "hos": "22.5.0",
     "atmosphere": "1.11.2",
@@ -10,13 +10,15 @@
   "default_allowlist": [],
   "targeted_mode_default": true,
   "recommended_mitm_program_ids": [
-    "0100000000000025"
+    "0100000000000025",
+    "010000000000001E"
   ],
   "recommended_fallback_program_ids": [
-    "0100000000000025"
+    "0100000000000025",
+    "010000000000001E"
   ],
   "original_result_trigger": "0x0000167B",
-  "scope": "NIM ssl:s fallback plus fixed-candidate ssl / ISslContext metadata-only diagnostic",
+  "scope": "NIM and statically proven Account ssl:s type-1 fallback plus fixed-candidate ordinary ssl metadata-only diagnostic",
   "mitm_ports": [
     "ssl",
     "ssl:s"
@@ -47,5 +49,16 @@
       "CreateContext original Result",
       "RegisterInternalPki type and original Result"
     ]
+  },
+  "system_ssl_fallback": {
+    "program_ids": [
+      "0100000000000025",
+      "010000000000001E"
+    ],
+    "type": 1,
+    "trigger": "0x0000167B",
+    "original_first": true,
+    "real_pki_id_only": true,
+    "account_hardware_verified": false
   }
 }

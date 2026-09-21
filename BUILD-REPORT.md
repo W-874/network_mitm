@@ -1,7 +1,7 @@
-# account-link-diagnostic-v1 build report
+# account-link-fallback-v2 build report
 
 This source tree contains a **controlled diagnostic**, not a released NSP.
-There is no account-link-diagnostic-v1 binary hash, ZIP, target build result,
+There is no account-link-fallback-v2 binary hash, ZIP, target build result,
 resource measurement, or hardware result in this tree. The previously built
 `resource-v3` package is historical evidence only and must not be renamed,
 repacked, or installed as this variant.
@@ -11,7 +11,7 @@ repacked, or installed as this variant.
 - Retains resource-v3's hardware-proven NIM (`0100000000000025`) `ssl:s`
   fallback: original command 8 first; only type 1 plus original `0x0000167B`
   may generate/import a real PKI ID.
-- Adds an opt-in ordinary `ssl` diagnostic for exactly qlaunch
+- Adds the exact Account `ssl:s` type-1 fallback and retains an opt-in ordinary `ssl` diagnostic for exactly qlaunch
   (`0100000000001000`), LibAppletAuth (`0100000000001011`), systemWeb
   (`0100000000001042`), and openWeb (`0100000000001043`). It records only the
   build marker, program ID, service, context ID, command-0 result, and
@@ -22,6 +22,7 @@ repacked, or installed as this variant.
   does not record hostnames, IPC/TLS buffers, account data, tokens,
   certificates, or private keys; it does not change TLS trust, verification,
   DNS, or handshake behavior.
+- Account `010000000000001E` uses the same `ssl:s` system Context boundary as NIM; it is statically proven but not hardware-verified.
 - Uses the existing single ServerManager: 16 sessions, 16 domains, 256 domain
   objects, two workers, and a 64 KiB pointer buffer. It does not restore
   `should_mitm_all` or add workers/resource pools.
@@ -44,7 +45,7 @@ make -C network_mitm
 python3 network_mitm/tools/check-binary.py --sd network_mitm/out/sd
 python3 network_mitm/tools/package.py \
   --sd network_mitm/out/sd \
-  --output /path/to/network_mitm-account-link-diagnostic-v1.zip \
+  --output /path/to/network_mitm-account-link-fallback-v2.zip \
   --source-commit HEAD
 ```
 

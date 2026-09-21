@@ -81,8 +81,12 @@ std::uint32_t RegisterAfterOriginalFailure(Backend &backend, bool fallback_enabl
         out_id = original_id;
         return rc;
     }
-    if (!fallback_enabled || type != 1 || rc != ObservedDevicePkiError) return rc;
-    return CreateSyntheticClientPki(backend, out_id);
+    // Only trigger fallback when: enabled AND type==1 AND exact error match
+    if (fallback_enabled && type == 1 && rc == ObservedDevicePkiError) {
+        return CreateSyntheticClientPki(backend, out_id);
+    }
+    // Otherwise leave out_id unchanged
+    return rc;
 }
 
 }

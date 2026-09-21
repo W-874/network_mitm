@@ -5,10 +5,10 @@
 - Inner repository HEAD: `323c587`.
 - Baseline hardware target: HOS 22.5.0 / Atmosphère 1.11.2 / emuMMC /
   Prelude / Nextendo on the user's own device.
-- The current source variant is `account-link-diagnostic-v1`, built on the
-  successful resource-v3 NIM fallback. It is source/host-test evidence only:
-  no diagnostic-v1 target NSP, binary/resource-check result, package, or
-  hardware run exists yet.
+- The current source variant is `account-link-fallback-v2`, built on the
+  successful resource-v3 NIM fallback. It now includes the statically proven
+  Account `ssl:s` system-context type-1 path; target NSP, binary/resource
+  checks, package, and hardware run remain release-gate outputs.
 
 ## What hardware has established
 
@@ -22,11 +22,11 @@
    second NIM PKI trace and no account-related DNS request. Therefore NIM's
    successful fallback does not identify the later local failure.
 
-## Current diagnostic-v1 implementation
+## Current account-link-fallback-v2 implementation
 
 - Registers exactly `ssl` and `ssl:s` with the existing single ServerManager:
   16 sessions, 16 domains, 256 objects, two workers, `0x10000` pointer buffer.
-- NIM remains solely on `ssl:s`. Its fallback remains original-first and is
+- NIM and Account remain solely on `ssl:s`. Their fallback remains original-first and is
   gated to type 1 plus original `0x0000167B`; other results remain original.
 - Ordinary `ssl` is disabled unless `enable_account_link_diagnostic=1` and is
   hard-limited to qlaunch `0100000000001000`, LibAppletAuth

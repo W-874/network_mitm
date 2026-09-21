@@ -34,10 +34,11 @@
 - resource-v3's NIM-only `ssl:s` build booted successfully. A manual Account
   Link still returned `2123-0011` without a new NIM PKI trace or account DNS.
 
-## account-link-diagnostic-v1 constraints
+## account-link-fallback-v2 constraints
 
-- v1 preserves NIM's `ssl:s` fallback exactly: original-first; only NIM,
-  type 1, and original `0x0000167B` may generate/import a real PKI ID.
+- v2 preserves NIM's `ssl:s` fallback and adds Account `010000000000001E`
+  only: original-first; only these two exact IDs, type 1, and original
+  `0x0000167B` may generate/import a real PKI ID.
 - It uses one ServerManager only: 16 sessions, 16 domains, 256 objects, two
   workers, and a `0x10000` pointer buffer. Do not add a manager, workers, or
   resource pool.
@@ -45,8 +46,8 @@
   `enable_account_link_diagnostic=1`. Its hard-coded candidates are only
   qlaunch `0100000000001000`, LibAppletAuth `0100000000001011`, systemWeb
   `0100000000001042`, and openWeb `0100000000001043`.
-- Service separation is strict: NIM is only `ssl:s`; the four candidates are
-  only ordinary `ssl`; no configurable ID, missing configuration, or
+- Service separation is strict: NIM and Account are only `ssl:s`; the four
+  candidates are only ordinary `ssl`; no configurable ID, missing configuration, or
   `should_mitm_all` may widen either route.
 - For the four ordinary candidates, record only build marker, program ID,
   service, context ID, original CreateContext result, and command-8 type/result.
@@ -57,12 +58,24 @@
 ## Workflow and stop conditions
 
 - Separate source/host evidence from target-build and hardware evidence.
-  account-link-diagnostic-v1 is not target-built, binary-checked, installed,
-  or hardware-verified until a clean target build succeeds.
-- Do not package, rename, or install resource-v3 output as diagnostic-v1.
-- The only next hardware question is whether one fixed ordinary candidate,
-  during one manual Account Link, calls command 8 and returns raw `0x167B`.
-  Preserve relevant logs before any scope change.
+  account-link-fallback-v2 is not target-built, binary-checked, installed,
+  or hardware-verified until a clean target build succeeds; Account hardware
+  success remains unknown until the controlled test.
+- Do not package, rename, or install resource-v3 output as account-link-fallback-v2.
+- The next hardware question is whether Account reaches its proven `ssl:s`
+  Context command 8 type-1 path and whether the exact fallback removes local
+  `2123-0011`. Preserve relevant logs before any scope change.
 - If it does not, or returns another result, do not add IDs, fallback paths,
   interception scope, certificate changes, or identity changes without new
   evidence and a narrowly reviewed plan.
+
+## Account system-context fallback evidence (2026-09-21)
+
+Static Account Program `010000000000001E` evidence now proves a real `ssl:s`
+path: root version 5 -> `CreateContextForSystem` command 100 -> Context
+command 8 with `InternalPki` type 1 (`DeviceClientCertDefault`) at Account
+callers `0x000d7958`, `0x0013e9d4`, and `0x0013ea18`. The implementation
+adds this exact Program ID to the strict system-SSL allowlist and reuses the
+existing original-first exact-`0x0000167B` fallback. Do not add ordinary `ssl`,
+do not intercept generic HIPC manager commands, and do not broaden any other
+program or PKI type.

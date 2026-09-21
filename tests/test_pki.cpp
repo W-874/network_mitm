@@ -12,39 +12,94 @@ using namespace nextendo::pki;
 
 void TestPolicy() {
     constexpr std::uint64_t Nim = NimProgramId;
+    constexpr std::uint64_t Account = AccountProgramId;
     constexpr std::uint64_t Am = 0x0100000000000023ULL;
     Policy p;
     assert(!p.Allows(Nim, 1));
+    assert(!p.Allows(Account, 1));
     p.enabled = true;
     assert(ParsePrograms(p, nullptr, 0));
     assert(!p.Allows(Nim, 1));
+    assert(!p.Allows(Account, 1));
+
     auto parse = [&](const std::string &s) { return ParsePrograms(p, s.data(), s.size()); };
+
+    // Test NIM only
     assert(parse(" 0100000000000025 "));
     assert(p.count == 1);
     assert(p.Allows(Nim, 1));
     assert(!p.Allows(Nim, 0));
     assert(!p.Allows(Nim, 2));
     assert(!p.Allows(Nim, 0xFFFFFFFF));
+    assert(!p.Allows(Account, 1));
     assert(!p.Allows(Am, 1));
+
+    // Test Account only
+    assert(parse(" 010000000000001E "));
+    assert(p.count == 1);
+    assert(p.Allows(Account, 1));
+    assert(!p.Allows(Account, 0));
+    assert(!p.Allows(Account, 2));
+    assert(!p.Allows(Nim, 1));
+    assert(!p.Allows(Am, 1));
+
+    // Test both NIM and Account (NIM first)
+    assert(parse("0100000000000025 010000000000001E"));
+    assert(p.count == 2);
+    assert(p.Allows(Nim, 1));
+    assert(p.Allows(Account, 1));
+    assert(!p.Allows(Am, 1));
+
+    // Test both Account and NIM (Account first)
+    assert(parse("010000000000001E 0100000000000025"));
+    assert(p.count == 2);
+    assert(p.Allows(Nim, 1));
+    assert(p.Allows(Account, 1));
+    assert(!p.Allows(Am, 1));
+
+    // Test duplicates rejected
+    assert(!parse("0100000000000025 0100000000000025"));
+    assert(p.count == 0);
+    assert(!parse("010000000000001E 010000000000001E"));
+    assert(p.count == 0);
+
     // Defense in depth: even a directly constructed policy cannot target AM.
+    p.count = 1;
     p.programs[0] = Am;
     assert(!p.Allows(Am, 1));
+
+    // Test with both valid IDs but AM directly constructed
+    p.count = 2;
+    p.programs[0] = Nim;
+    p.programs[1] = Am;
+    assert(p.Allows(Nim, 1));
+    assert(!p.Allows(Am, 1));
+
     p.enabled = false;
     assert(!p.Allows(Nim, 1));
+    assert(!p.Allows(Account, 1));
     p.enabled = true;
+
+    // Test rejection cases
     for (const auto *bad : {"*", "0x0100000000000025", "010000000000002", "01000000000000255",
             "0000000000000000", "0100000000000025,", ",0100000000000025",
             "0100000000000025,0100000000000025", "0100000000000025,0100000000000023",
-            "0100000000000025;0100000000000023", "01000000000000ZZ", "0100000000000023"}) {
+            "0100000000000025;0100000000000023", "01000000000000ZZ", "0100000000000023",
+            "0100000000000025,010000000000001E", "0100000000000025;010000000000001E",
+            "0100000000000025 010000000000001E 0100000000000023",
+            "010000000000001E 0100000000000023"}) {
         assert(parse("0100000000000025"));
         assert(!parse(bad));
         assert(p.count == 0); // no valid prefix survives an invalid suffix
         assert(!p.Allows(Nim, 1));
+        assert(!p.Allows(Account, 1));
     }
+
     const char terminated[] = "0100000000000025";
     assert(ParsePrograms(p, terminated, sizeof(terminated)));
     std::string embedded = std::string(terminated) + '\0' + ",0100000000000023";
     assert(!parse(embedded));
+
     // Exhaust malformed lengths/bytes without leaking a previous selection.
     for (unsigned n=0; n<1024; ++n) {
         std::string fuzz(n, static_cast<char>(n & 255));
@@ -114,98 +169,129 @@ struct FakeBackend {
 };
 
 void TestSynthetic() {
-    constexpr std::uint64_t Unchanged = 0x123456;
-    {
-        FakeBackend b; std::uint64_t id = Unchanged;
-        assert(CreateSyntheticClientPki(b, id) == 0 && id == b.real_id);
-        assert(b.allocations == 1 && b.generates == 1 && b.imports == 1 && b.frees == 1);
-        assert((b.stages == std::vector<std::string>{"fallback_generate", "fallback_import"}));
-    }
-    {
-        FakeBackend b; b.allocation_failure = true; std::uint64_t id = Unchanged;
-        assert(CreateSyntheticClientPki(b, id) == FakeBackend::NoMemory && id == Unchanged);
-        assert(b.generates == 0 && b.imports == 0 && b.frees == 0);
-        assert(b.stages.back() == "fallback_allocate");
-    }
-    for (const auto rc : {0x1234U, 0xFEEDU, 0xE401U}) {
-        FakeBackend b; b.generate_result = rc; std::uint64_t id = Unchanged;
-        assert(CreateSyntheticClientPki(b, id) == rc && id == Unchanged);
-        assert(b.imports == 0 && b.frees == 1 && b.results.back() == rc);
-        FakeBackend c; c.import_result = rc;
-        assert(CreateSyntheticClientPki(c, id) == rc && id == Unchanged);
-        assert(c.imports == 1 && c.frees == 1 && c.results.back() == rc);
-    }
-    for (auto size : {0U, 4097U, 0xFFFFFFFFU}) {
-        for (bool cert : {false, true}) {
-            FakeBackend b; (cert ? b.cert_length : b.key_length) = size;
-            std::uint64_t id = Unchanged;
-            assert(CreateSyntheticClientPki(b, id) == FakeBackend::InvalidSize && id == Unchanged);
-            assert(b.imports == 0 && b.frees == 1 && b.stages.back() == "fallback_validate_lengths");
-        }
-    }
-    FakeBackend b; b.cert_length = b.key_length = DerCapacity;
-    std::uint64_t id;
-    assert(CreateSyntheticClientPki(b, id) == 0);
+    FakeBackend backend;
+    std::uint64_t id = 0xAABBCCDD;
+    assert(RegisterAfterOriginalFailure(backend, false, 1, id) == 0);
+    assert(id == backend.original_id && backend.originals == 1 && backend.allocations == 0);
+    backend.original_result = ObservedDevicePkiError;
+    id = 0xAABBCCDD;
+    assert(RegisterAfterOriginalFailure(backend, false, 1, id) == ObservedDevicePkiError);
+    assert(id == 0xAABBCCDD && backend.originals == 2 && backend.allocations == 0);
+    id = 0xAABBCCDD;
+    assert(RegisterAfterOriginalFailure(backend, true, 1, id) == 0);
+    assert(id == backend.real_id && backend.originals == 3 && backend.frees == 1);
+    assert((backend.calls == std::vector<std::string>{"original", "original", "original", "generate", "import"}));
+    backend.original_result = 0xABCD;
+    id = 0xAABBCCDD;
+    assert(RegisterAfterOriginalFailure(backend, true, 1, id) == 0xABCD);
+    assert(id == 0xAABBCCDD && backend.originals == 4 && backend.generates == 1);
+    backend.original_result = ObservedDevicePkiError;
+    id = 0xAABBCCDD;
+    assert(RegisterAfterOriginalFailure(backend, true, 0, id) == ObservedDevicePkiError);
+    assert(id == 0xAABBCCDD && backend.generates == 1);
+    id = 0xAABBCCDD;
+    assert(RegisterAfterOriginalFailure(backend, true, 2, id) == ObservedDevicePkiError);
+    assert(id == 0xAABBCCDD && backend.generates == 1);
 }
+
 void TestRouting() {
-    constexpr std::uint64_t Nim = 0x0100000000000025ULL;
+    constexpr std::uint64_t Nim = NimProgramId;
+    constexpr std::uint64_t Account = AccountProgramId;
     constexpr std::uint64_t Am = 0x0100000000000023ULL;
-    constexpr std::uint64_t Game = 0x0100123456789000ULL;
+    constexpr std::uint64_t Game = 0x0100AABBCCDDEEFFULL;
     RoutingPolicy p;
-    assert(p.targeted);
-    for (auto program : {Nim, Am, Game}) {
-        for (bool system : {false, true}) {
-            for (bool legacy_all : {false, true}) {
-                const auto service = system ? ServiceRoute::SystemSsl : ServiceRoute::OrdinarySsl;
-                assert(!p.ShouldMitm(program, service, program == Game, legacy_all));
-            }
-        }
-    }
+    assert(p.targeted && !p.trace_requested && !p.account_link_diagnostic);
+    assert(!p.ShouldMitm(Nim, ServiceRoute::SystemSsl, false, false));
+    assert(!p.ShouldMitm(Account, ServiceRoute::SystemSsl, false, false));
+    assert(!p.ShouldMitm(Game, ServiceRoute::OrdinarySsl, true, false));
+    assert(!p.Options(Nim).trace && !p.Options(Nim).fallback);
+    assert(!p.Options(Account).trace && !p.Options(Account).fallback);
+
     const char nim[] = "0100000000000025";
     assert(ParsePrograms(p.mitm_programs, nim, sizeof(nim)));
-    p.trace_requested = true;
-    p.fallback_programs.enabled = true;
-    assert(ParsePrograms(p.fallback_programs, nim, sizeof(nim)));
-    for (bool system : {false, true}) {
-        for (bool legacy_all : {false, true}) {
-            const auto service = system ? ServiceRoute::SystemSsl : ServiceRoute::OrdinarySsl;
-            assert(p.ShouldMitm(Nim, service, false, legacy_all) == system);
-            for (auto program : std::array<std::uint64_t, 4>{Am, Game, 0x010000000000000FULL, 0x0100000000000033ULL}) {
-                assert(!p.ShouldMitm(program, service, program == Game, legacy_all));
-                const auto options = p.Options(program);
-                assert(!options.trace && !options.fallback);
-            }
-        }
-    }
-    assert(p.Options(Nim).trace && p.Options(Nim).fallback);
-    p.trace_requested = false;
-    assert(p.Options(Nim).trace && p.Options(Nim).fallback); // only selected fallback forces logging
-    p.fallback_programs.enabled = false;
+    assert(p.ShouldMitm(Nim, ServiceRoute::SystemSsl, false, false));
+    assert(!p.ShouldMitm(Account, ServiceRoute::SystemSsl, false, false));
+    assert(!p.ShouldMitm(Nim, ServiceRoute::OrdinarySsl, false, false));
+    assert(!p.ShouldMitm(Game, ServiceRoute::OrdinarySsl, true, false));
+    assert(!p.ShouldMitm(Game, ServiceRoute::SystemSsl, true, false));
     assert(!p.Options(Nim).trace && !p.Options(Nim).fallback);
+
+    const char account[] = "010000000000001E";
+    p.mitm_programs.programs = {};
+    p.mitm_programs.count = 0;
+    assert(ParsePrograms(p.mitm_programs, account, sizeof(account)));
+    assert(!p.ShouldMitm(Nim, ServiceRoute::SystemSsl, false, false));
+    assert(p.ShouldMitm(Account, ServiceRoute::SystemSsl, false, false));
+    assert(!p.ShouldMitm(Account, ServiceRoute::OrdinarySsl, false, false));
+    assert(!p.Options(Account).trace && !p.Options(Account).fallback);
+
+    const char both[] = "0100000000000025 010000000000001E";
+    p.mitm_programs.programs = {};
+    p.mitm_programs.count = 0;
+    assert(ParsePrograms(p.mitm_programs, both, sizeof(both)));
+    assert(p.ShouldMitm(Nim, ServiceRoute::SystemSsl, false, false));
+    assert(p.ShouldMitm(Account, ServiceRoute::SystemSsl, false, false));
+    assert(!p.ShouldMitm(Nim, ServiceRoute::OrdinarySsl, false, false));
+    assert(!p.ShouldMitm(Account, ServiceRoute::OrdinarySsl, false, false));
+
+    p.trace_requested = true;
+    assert(p.Options(Nim).trace && !p.Options(Nim).fallback);
+    assert(p.Options(Account).trace && !p.Options(Account).fallback);
+    const char only_nim_fallback[] = "0100000000000025";
+    assert(ParsePrograms(p.fallback_programs, only_nim_fallback, sizeof(only_nim_fallback)));
     p.fallback_programs.enabled = true;
+    assert(p.Options(Nim).trace && p.Options(Nim).fallback);
+    assert(p.Options(Account).trace && !p.Options(Account).fallback);
+
+    const char only_account_fallback[] = "010000000000001E";
+    p.fallback_programs.programs = {};
+    p.fallback_programs.count = 0;
+    assert(ParsePrograms(p.fallback_programs, only_account_fallback, sizeof(only_account_fallback)));
+    assert(!p.Options(Nim).fallback);
+    assert(p.Options(Account).trace && p.Options(Account).fallback);
+
+    p.fallback_programs.programs = {};
+    p.fallback_programs.count = 0;
+    const char both_fallback[] = "0100000000000025 010000000000001E";
+    assert(ParsePrograms(p.fallback_programs, both_fallback, sizeof(both_fallback)));
+    assert(p.Options(Nim).fallback);
+    assert(p.Options(Account).fallback);
+
+    p.trace_requested = false;
+    assert(p.Options(Nim).trace && p.Options(Nim).fallback);
+    assert(p.Options(Account).trace && p.Options(Account).fallback);
+
     const char only_am[] = "0100000000000023";
-    assert(!ParsePrograms(p.fallback_programs, only_am, sizeof(only_am)));
-    assert(!p.Options(Nim).fallback && !p.Options(Am).fallback); // both lists required
+    assert(!ParsePrograms(p.mitm_programs, only_am, sizeof(only_am)));
+    assert(!p.Options(Nim).fallback && !p.Options(Am).fallback);
+
     p.targeted = false;
     assert(!p.ShouldMitm(Nim, ServiceRoute::SystemSsl, false, false));
+    assert(!p.ShouldMitm(Account, ServiceRoute::SystemSsl, false, false));
     assert(!p.ShouldMitm(Nim, ServiceRoute::SystemSsl, false, true));
     assert(!p.ShouldMitm(Game, ServiceRoute::OrdinarySsl, true, false));
     assert(!p.ShouldMitm(Game, ServiceRoute::SystemSsl, true, false));
     assert(!p.Options(Nim).trace && !p.Options(Nim).fallback);
-    // Any configuration that names another program fails closed.
+    assert(!p.Options(Account).trace && !p.Options(Account).fallback);
+
     p.targeted = true;
+    p.mitm_programs.programs = {};
+    p.mitm_programs.count = 0;
+    assert(ParsePrograms(p.mitm_programs, both, sizeof(both)));
     const char two[] = "0100000000000025,0100000000000023";
     assert(!ParsePrograms(p.mitm_programs, two, sizeof(two)));
     assert(!p.ShouldMitm(Nim, ServiceRoute::SystemSsl, false, false));
+    assert(!p.ShouldMitm(Account, ServiceRoute::SystemSsl, false, false));
     assert(!p.ShouldMitm(Am, ServiceRoute::SystemSsl, false, false));
-    assert(!p.Options(Nim).fallback && !p.Options(Am).fallback);
+    assert(!p.Options(Nim).fallback && !p.Options(Account).fallback && !p.Options(Am).fallback);
 }
 
 void TestAccountLinkDiagnosticRoutingAndForwarding() {
     constexpr std::uint64_t Nim = NimProgramId;
+    constexpr std::uint64_t Account = AccountProgramId;
     RoutingPolicy p;
-    const char nim[] = "0100000000000025";
-    assert(ParsePrograms(p.mitm_programs, nim, sizeof(nim)));
+    const char both[] = "0100000000000025 010000000000001E";
+    assert(ParsePrograms(p.mitm_programs, both, sizeof(both)));
     p.account_link_diagnostic = true;
     for (const auto candidate : AccountLinkDiagnosticProgramIds) {
         assert(IsAccountLinkDiagnosticProgram(candidate));
@@ -215,14 +301,14 @@ void TestAccountLinkDiagnosticRoutingAndForwarding() {
     }
     assert(!p.ShouldMitm(Nim, ServiceRoute::OrdinarySsl, false, false));
     assert(p.ShouldMitm(Nim, ServiceRoute::SystemSsl, false, true));
+    assert(p.ShouldMitm(Account, ServiceRoute::SystemSsl, false, true));
     assert(!p.ShouldTraceOrdinary(Nim));
+    assert(!p.ShouldTraceOrdinary(Account));
     assert(!p.ShouldMitm(0x0100000000000023ULL, ServiceRoute::OrdinarySsl, false, true));
     p.account_link_diagnostic = false;
     for (const auto candidate : AccountLinkDiagnosticProgramIds)
         assert(!p.ShouldMitm(candidate, ServiceRoute::OrdinarySsl, false, true));
 
-    // Ordinary command 8 is a literal forward: even type 1 / 0x167B cannot
-    // reach NIM's synthetic generator/importer.
     FakeBackend failure;
     failure.original_result = ObservedDevicePkiError;
     std::uint64_t id = 0xAABBCCDD;
@@ -266,11 +352,12 @@ void TestObservedErrorTrigger() {
         else { b.key_length = 0; expected = FakeBackend::InvalidSize; }
         std::uint64_t id = Unchanged;
         assert(RegisterAfterOriginalFailure(b, true, 1, id) == expected);
-        assert(id == Unchanged && b.originals == 1); // no fake output and no retry
+        assert(id == Unchanged && b.originals == 1);
         assert(b.frees == (b.allocation_failure ? 0U : 1U));
     }
 }
+
 int main() {
     TestPolicy(); TestSynthetic(); TestRouting(); TestAccountLinkDiagnosticRoutingAndForwarding(); TestObservedErrorTrigger();
-    std::cout << "PASS: hard service/program routing, fixed ordinary candidates, ordinary command-8 raw forwarding, NIM-only fallback, legacy broad mode rejected, exact 0x167B trigger, error propagation, allocation/length failures, key wiping\n";
+    std::cout << "PASS: hard service/program routing, fixed ordinary candidates, ordinary command-8 raw forwarding, NIM and Account ssl:s fallback with allowlist capacity 2, legacy broad mode rejected, exact 0x167B trigger, error propagation, allocation/length failures, key wiping\n";
 }

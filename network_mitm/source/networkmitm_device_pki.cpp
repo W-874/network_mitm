@@ -82,7 +82,7 @@ void InitializeDevicePkiPolicy() {
                        g_routing.account_link_diagnostic);
     const sm::MitmProcessInfo self{};
     TracePki(true, self, 0, "DevicePkiPolicy",
-        "variant=account-link-diagnostic-v1 targeted=%u mitm_valid=%u mitm_count=%llu ordinary_diagnostic=%u fallback_enabled=%u fallback_valid=%u fallback_count=%llu trigger=0x0000167B",
+        "variant=account-link-fallback-v2 targeted=%u mitm_valid=%u mitm_count=%llu ordinary_diagnostic=%u fallback_enabled=%u fallback_valid=%u fallback_count=%llu trigger=0x0000167B",
         static_cast<unsigned>(g_routing.targeted), static_cast<unsigned>(mitm_valid),
         static_cast<unsigned long long>(g_routing.mitm_programs.count),
         static_cast<unsigned>(g_routing.account_link_diagnostic),

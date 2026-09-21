@@ -54,7 +54,7 @@ def main():
         raise ValueError('missing boot flag')
     if report['nso_bss_bytes'] >= 3 * 1024 * 1024:
         raise ValueError('account-link diagnostic static-memory budget exceeded')
-    report['variant'] = 'account-link-diagnostic-v1'
+    report['variant'] = 'account-link-fallback-v2'
     report['mitm_ports'] = ['ssl', 'ssl:s']
     if args.baseline:
         before = read_nsp(args.baseline)

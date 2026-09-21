@@ -1,4 +1,4 @@
-# network_mitm: Account Link diagnostic v1
+# network_mitm: Account Link fallback v2
 
 A resource-bounded SSL Client-PKI experiment for HOS22.5.0 / Atmosphere1.11.2 / emuMMC, based on upstream c15d659600760ac83151e38660c468244176c5b0 and unchanged Atmosphere-libs d3083af1827cd6ca2a96feb9316eb85cd01bae1f.
 
@@ -6,9 +6,9 @@ A resource-bounded SSL Client-PKI experiment for HOS22.5.0 / Atmosphere1.11.2 / 
 
 V2's real console logs establish that NIM temporary PKI generation/import succeeds, but AM still fails during GRC process launch. Matching-firmware analysis and the resource repair are in [CRASH-ANALYSIS.md](CRASH-ANALYSIS.md). V1/v2 installation recommendations remain withdrawn.
 
-This one-time diagnostic retains v3's hardware-verified NIM `ssl:s` PKI fallback unchanged. It also reserves ordinary `ssl`, but accepts it only when `enable_account_link_diagnostic=1` and only from four fixed candidates: qlaunch (`0100000000001000`), LibAppletAuth (`0100000000001011`), systemWeb (`0100000000001042`), and openWeb (`0100000000001043`). The one manager remains at 16 sessions,16 domains,256 objects and two workers; the 64KiB per-session IPC pointer buffer remains. `should_mitm_all` cannot widen either path.
+This test build retains v3's hardware-verified NIM `ssl:s` PKI fallback unchanged and adds only the statically proven Account `010000000000001E` `ssl:s` system-context type-1 path. Both system clients remain exact allowlist entries and use original-first exact-`0x167B` fallback. It also reserves ordinary `ssl`, but accepts it only when `enable_account_link_diagnostic=1` and only from four fixed candidates: qlaunch (`0100000000001000`), LibAppletAuth (`0100000000001011`), systemWeb (`0100000000001042`), and openWeb (`0100000000001043`). The one manager remains at 16 sessions,16 domains,256 objects and two workers; the 64KiB per-session IPC pointer buffer remains. `should_mitm_all` cannot widen either path.
 
-The ordinary path is metadata-only: it forwards `CreateContext` and `RegisterInternalPki` command8 exactly once, recording the fixed build marker, program ID, service, context ID, type and original Result. Its command8 path cannot initiate fallback generation/import or transform a Result; a client that explicitly issues commands12/13 remains transparently forwarded. It never records hostnames, buffers, account data, certificates or keys, and does not modify handshake/trust/verification behavior. On NIM's selected system context, v3's original command8→type1/0x167B-only command13→12 fallback is unchanged.
+The ordinary path is metadata-only: it forwards `CreateContext` and `RegisterInternalPki` command8 exactly once, recording the fixed build marker, program ID, service, context ID, type and original Result. Its command8 path cannot initiate fallback generation/import or transform a Result; a client that explicitly issues commands12/13 remains transparently forwarded. It never records hostnames, buffers, account data, certificates or keys, and does not modify handshake/trust/verification behavior. On NIM and Account selected system contexts, the original command8→type1/0x167B-only command13→12 fallback is unchanged; Account is not hardware-verified yet.
 
 Read [README-TEST.md](README-TEST.md) before the single diagnostic installation, and keep [README-ROLLBACK.md](README-ROLLBACK.md). **Replace both exefs.nsp and mitm.lst**: this build requires exactly `ssl` then `ssl:s`. Preserve Prelude Nextendo hosts and trust.
 
@@ -16,4 +16,4 @@ Read [README-TEST.md](README-TEST.md) before the single diagnostic installation,
 
 Upstream was built untouched before the initial patch. Build using the upstream Docker recipe or the equivalent devkitPro container in BUILD-REPORT.md. tools/test-host.sh tests production policy/orchestration; tools/check-binary.py verifies the actual NSP memory budget and service declaration. GPLv2; see LICENSE.
 
-The package includes only the module and documentation. Firmware, prod.keys, decrypted Nintendo executables and private log dumps are not included. V3 is built and checked locally; its console boot/account-linking outcome is not yet verified.
+The package includes only the module and documentation. Firmware, prod.keys, decrypted Nintendo executables and private log dumps are not included. The Account fallback v2 source is host-tested; target build, package, boot, and Account-Link hardware outcome are not yet verified until the release gates below pass.

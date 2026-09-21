@@ -1,4 +1,4 @@
-# Account Link diagnostic v1 回滚
+# Account Link fallback v2 回滚
 
 1. 完整关机，取出 SD；保存本轮 `/network_mitm/internal_pki.log`、`/atmosphere/logs/network_mitm_observer.log`，以及本轮 fatal/crash `.log`（如果产生）。
 2. 将整个 `/atmosphere/contents/4200000000000666/` 移到电脑。不要只移走 boot2.flag 而保留 mitm.lst。

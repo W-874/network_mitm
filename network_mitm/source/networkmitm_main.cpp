@@ -410,7 +410,7 @@ void Main() {
         AMS_LOG("SSL service traffic dumping disabled\n");
     }
 
-    AMS_LOG("account-link-diagnostic-v1 ports=ssl,ssl:s sessions=%llu domains=%llu objects=%llu workers=%llu manager_bytes=%llu\n",
+    AMS_LOG("account-link-fallback-v2 ports=ssl,ssl:s sessions=%llu domains=%llu objects=%llu workers=%llu manager_bytes=%llu\n",
         static_cast<unsigned long long>(MaxSessions),
         static_cast<unsigned long long>(ServerOptions::MaxDomains),
         static_cast<unsigned long long>(ServerOptions::MaxDomainObjects),

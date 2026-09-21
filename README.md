@@ -16,4 +16,4 @@ Read [README-TEST.md](README-TEST.md) before the single diagnostic installation,
 
 Upstream was built untouched before the initial patch. Build using the upstream Docker recipe or the equivalent devkitPro container in BUILD-REPORT.md. tools/test-host.sh tests production policy/orchestration; tools/check-binary.py verifies the actual NSP memory budget and service declaration. GPLv2; see LICENSE.
 
-The package includes only the module and documentation. Firmware, prod.keys, decrypted Nintendo executables and private log dumps are not included. The Account fallback v2 source is host-tested; target build, package, boot, and Account-Link hardware outcome are not yet verified until the release gates below pass.
+The package includes only the module and documentation. Firmware, prod.keys, decrypted Nintendo executables and private log dumps are not included. The Account fallback v2 source is host-tested and has a clean target build/binary check; package, boot, and Account-Link hardware outcome remain separate gates.

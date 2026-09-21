@@ -2,13 +2,13 @@
 
 ## Snapshot
 
-- Inner repository HEAD: `323c587`.
+- Inner repository source commit before the final release-document checkpoint: `152a45d`.
 - Baseline hardware target: HOS 22.5.0 / Atmosphère 1.11.2 / emuMMC /
   Prelude / Nextendo on the user's own device.
 - The current source variant is `account-link-fallback-v2`, built on the
   successful resource-v3 NIM fallback. It now includes the statically proven
-  Account `ssl:s` system-context type-1 path; target NSP, binary/resource
-  checks, package, and hardware run remain release-gate outputs.
+  Account `ssl:s` system-context type-1 path; target NSP and binary/resource checks now pass; the final clean-HEAD
+  rebuild and package remain release-gate outputs, and hardware remains pending.
 
 ## What hardware has established
 

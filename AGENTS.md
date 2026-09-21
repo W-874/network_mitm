@@ -58,9 +58,9 @@
 ## Workflow and stop conditions
 
 - Separate source/host evidence from target-build and hardware evidence.
-  account-link-fallback-v2 is not target-built, binary-checked, installed,
-  or hardware-verified until a clean target build succeeds; Account hardware
-  success remains unknown until the controlled test.
+  account-link-fallback-v2 has now passed a clean target build and binary
+  check, but is not installed or hardware-verified; Account hardware success
+  remains unknown until the controlled test.
 - Do not package, rename, or install resource-v3 output as account-link-fallback-v2.
 - The next hardware question is whether Account reaches its proven `ssl:s`
   Context command 8 type-1 path and whether the exact fallback removes local

@@ -1,10 +1,22 @@
 # account-link-fallback-v2 build report
 
-This source tree contains a **controlled diagnostic**, not a released NSP.
-There is no account-link-fallback-v2 binary hash, ZIP, target build result,
-resource measurement, or hardware result in this tree. The previously built
+This source tree contains a **controlled diagnostic** and now has a clean target
+build plus binary check. It is not hardware-verified. The previously built
 `resource-v3` package is historical evidence only and must not be renamed,
 repacked, or installed as this variant.
+
+## Current clean target build
+
+- Source commit used for the build: `152a45d` (the release documentation
+  update below will be rebuilt before packaging so the binary marker matches
+  the final clean HEAD).
+- Target toolchain: devkitA64 `aarch64-none-elf-g++ 15.2.0`.
+- Target NSP SHA-256: `9a204ac162891c0f09423f359387cf27269eda273faeb23f07d8bb862ed8227f`.
+- Program ID: `4200000000000666`.
+- NSO BSS: `2231336` bytes; mapped image end (page aligned): `2547712` bytes.
+- Binary checker: passed; ports are exactly `ssl`, then `ssl:s`; variant is
+  `account-link-fallback-v2`.
+- Account hardware result: unknown; no console claim is made by this build.
 
 ## Scope
 
@@ -51,7 +63,9 @@ python3 network_mitm/tools/package.py \
 
 Only after all commands succeed may the generated ZIP and its generated
 `network_mitm/docs/BUILD-MANIFEST.json` be treated as the release artifact.
-The checker must report both ports in order: `ssl`, then `ssl:s`.
+The checker must report both ports in order: `ssl`, then `ssl:s`. The package
+manifest, not this source document, is authoritative for the final package
+file hashes.
 
 ## Historical records
 

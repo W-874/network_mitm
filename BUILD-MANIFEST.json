@@ -20,9 +20,8 @@
     "010000000000002F"
   ],
   "original_result_trigger": "0x0000167B",
-  "scope": "NIM, Account, and NPNS ssl:s type-1 fallback plus fixed-candidate ordinary ssl metadata-only diagnostic",
+  "scope": "NIM, Account, and NPNS ssl:s type-1 fallback; ordinary ssl MITM disabled after hardware 0xFFFE abort",
   "mitm_ports": [
-    "ssl",
     "ssl:s"
   ],
   "server_resources": {
@@ -34,23 +33,12 @@
     "pointer_bytes_per_session": 65536
   },
   "ordinary_ssl_diagnostic": {
+    "enabled": false,
     "enable_setting": "enable_account_link_diagnostic",
-    "program_ids": [
-      "0100000000001000",
-      "0100000000001011",
-      "0100000000001042",
-      "0100000000001043"
-    ],
-    "metadata_only": true,
+    "required_value": 0,
+    "program_ids": [],
     "fallback": false,
-    "records": [
-      "build marker",
-      "program ID",
-      "service",
-      "context ID",
-      "CreateContext original Result",
-      "RegisterInternalPki type and original Result"
-    ]
+    "reason": "disabled after network_mitm abort immediately following ordinary ssl systemWeb CreateContext"
   },
   "system_ssl_fallback": {
     "program_ids": [
@@ -62,7 +50,8 @@
     "trigger": "0x0000167B",
     "original_first": true,
     "real_pki_id_only": true,
-    "account_hardware_verified": false,
-    "npns_hardware_observed": true
+    "account_hardware_verified": true,
+    "npns_hardware_observed": true,
+    "npns_fallback_hardware_verified": true
   }
 }

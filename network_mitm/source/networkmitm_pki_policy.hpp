@@ -83,10 +83,10 @@ struct RoutingPolicy {
         (void)application;
         (void)legacy_mitm_all;
         if (!targeted) return false;
-        // Hard service × Program-ID separation: NIM, Account, and NPNS use ssl:s,
-        // and the account-link candidates use ordinary ssl in this diagnostic.
+        // This release registers only ssl:s. Ordinary ssl must remain native even
+        // if a stale diagnostic setting is present.
         if (service == ServiceRoute::SystemSsl) return Targets(program);
-        return account_link_diagnostic && IsAccountLinkDiagnosticProgram(program);
+        return false;
     }
 
     ClientOptions Options(std::uint64_t program) const {
@@ -98,8 +98,8 @@ struct RoutingPolicy {
     }
 
     bool ShouldTraceOrdinary(std::uint64_t program) const {
-        return targeted && account_link_diagnostic &&
-               IsAccountLinkDiagnosticProgram(program);
+        (void)program;
+        return false;
     }
 };
 

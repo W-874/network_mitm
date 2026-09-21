@@ -75,3 +75,8 @@ in `artifacts/resource-v3/`. They apply only to v3's `ssl:s`-only NSP. The
 earlier NIM PKI observations and AM analysis remain in `EVIDENCE-v2.md` and
 `CRASH-ANALYSIS.md`; neither proves this diagnostic build or Account Link
 completion.
+
+
+## 2026-09-21 system-only safety rebuild scope
+
+The next release removes the ordinary `ssl` MITM registration and emits a single-line `mitm.lst` containing only `ssl:s`. This is a deliberate safety boundary after the hardware-observed network_mitm `4200000000000666` abort following ordinary systemWeb `0100000000001042` `CreateContext`. The NIM, Account, and NPNS system `ssl:s` fallback implementation is unchanged.

@@ -88,3 +88,17 @@ repeated `0x0000167B` / `2123-0011` producer. The current implementation adds
 NPNS to the strict `ssl:s` allowlist and reuses the same exact type-1 fallback;
 `ns` and `friends` `0x25A0B` reports are not fallback targets. NPNS fallback
 success remains unverified until the next controlled console run.
+
+## Current release safety override (2026-09-21)
+
+- The current test release registers only `ssl:s`. Ordinary `ssl` is not in
+  `mitm.lst`, is not registered by `networkmitm_main.cpp`, and must not be
+  re-enabled by `enable_account_link_diagnostic` or any stale setting.
+- This boundary follows the hardware observation that accepting ordinary
+  systemWeb `0100000000001042` was followed by a network_mitm
+  `4200000000000666` Atmosphère abort. It is a bypass boundary, not a proven
+  explanation of the underlying `0xFFFE` ABI cause.
+- The only current runtime targets are the exact NIM, Account, and NPNS
+  `ssl:s` IDs in the fallback lists. Keep `enable_account_link_diagnostic=0`,
+  `should_mitm_all=0`, and the full system-only configuration documented in
+  `README-TEST.md`.

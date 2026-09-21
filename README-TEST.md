@@ -1,13 +1,20 @@
-# Account Link fallback v2：一次受控测试
+# Account Link fallback v2：ssl:s-only 受控测试
 
-本版以已成功启动的 resource-v3 为基线：保留 NIM 的临时 PKI fallback，为静态证明的 Account `ssl:s` system-context type-1 路径增加同一精确 fallback，并加入硬件报告确认的 NPNS `ssl:s` 0x167B 路径；普通 `ssl` 仍仅作元数据观察。它不是账户认证绕过，也不会读取 TLS/账户内容或改动信任、DNS、身份材料。
+本包保留已验证的 NIM `ssl:s` DeviceClientCertDefault fallback，并保留日志已证明成功的 Account 与 NPNS `ssl:s` type-1 路径。它**不注册 ordinary `ssl` MITM 端口**：上一轮在接受 systemWeb `0100000000001042` 的 ordinary `ssl` 后，network_mitm 自身触发了 Title ID `4200000000000666` 的 Atmosphère `abort (0xFFFE)`。因此本包只测试 system `ssl:s` fallback，不再观察 ordinary `ssl`。
+
+这不是账户认证绕过，不读取 TLS/账户内容，不改 Prelude、DNS、CA、TLS verification 或身份材料。
 
 ## 安装
 
-1. 关机，备份现有4200000000000666模块目录、system_settings.ini和本轮日志。
-2. 将诊断包合并到SD根目录。**必须同时替换 exefs.nsp 和 mitm.lst**，不要只复制NSP。路径仍来自 upstream Makefile/NPDM：`/atmosphere/contents/4200000000000666/`。
-3. 打开该目录的mitm.lst，必须恰好两行：先 `ssl`，再 `ssl:s`。保留 flags/boot2.flag。
-4. 仅合并 `config/account-link-diagnostic.ini.example` 中的 `[network_mitm]` 项；不要覆盖其他设置：
+1. 完整关机，备份现有 `/atmosphere/contents/4200000000000666/`、`system_settings.ini` 和本轮日志。
+2. 将本包合并到 SD 根目录。**必须同时替换 `exefs.nsp` 和 `mitm.lst`**，路径为 `/atmosphere/contents/4200000000000666/`；保留 `flags/boot2.flag`。
+3. `mitm.lst` 必须恰好只有一行：
+
+   ```text
+   ssl:s
+   ```
+
+4. 仅合并下面完整的 `[network_mitm]` 区块；不要覆盖其他设置段：
 
 ```ini
 [network_mitm]
@@ -17,46 +24,41 @@ mitm_program_ids = str!0100000000000025 010000000000001E 010000000000002F
 trace_internal_pki = u8!0x1
 enable_device_cert_fallback = u8!0x1
 device_cert_fallback_program_ids = str!0100000000000025 010000000000001E 010000000000002F
-enable_account_link_diagnostic = u8!0x1
+enable_account_link_diagnostic = u8!0x0
 should_mitm_all = u8!0x0
 should_dump_ssl_traffic = u8!0x0
 should_disable_ssl_verification = u8!0x0
 ```
 
-5. 保持 emuMMC、Prelude Nextendo模式及当前hosts/信任配置。不要重配Prelude、增加CA、关闭验证或添加其他目标。Prelude重新部署可能清理本模块；如需部署，顺序是Prelude在前、本ZIP在后。
-6. 完整重启。先确认能进入HOME，再尝试一次账户关联。不要再安装全系统追踪版。
+5. 保持 emuMMC、Prelude Nextendo 模式及现有 hosts/信任配置。不要增加 CA、关闭 TLS verification、修改 DNS 或添加其他 Program ID。
+6. 完整重启。先确认可进入 HOME，再只进行一次 Nintendo Account 关联动作；不要安装旧的 ordinary `ssl` 诊断包。
 
-## 日志
+## 预期日志
 
-`/atmosphere/logs/network_mitm_observer.log` 每次启动清空，先保存旧文件。新版本应有：
-
-```text
-account-link-fallback-v2 ports=ssl,ssl:s sessions=16 domains=16 objects=256 workers=2 manager_bytes=...
-```
-
-普通 `ssl` 仅允许固定四候选且永不 fallback；`ssl:s` 仅允许配置中精确的 NIM、Account 与 NPNS；should_mitm_all 即使残留1也不会扩大范围。targeted=0会拒绝所有客户端，不恢复旧模式。
-
-`/network_mitm/internal_pki.log` 继续追加，以 build 和 boot 标记区分。单次点击 Account Link 后，只检查以下无敏感元数据：
+启动日志应显示：
 
 ```text
-account-link-fallback-v2 boot build=...
-program=... ctx=... CreateContext service=ssl command=0 forward_result=0x...
-program=... ctx=... RegisterInternalPki service=ssl command=8 type=... forward_result=0x...
+account-link-fallback-v2 ports=ssl:s sessions=16 domains=16 objects=256 workers=2 manager_bytes=...
 ```
 
-这些记录不包含 hostname、TLS/IPC buffer、账户内容、token、证书或私钥。普通 RegisterInternalPki 路径永不 fallback；Account 与 NIM 的 `ssl:s` type 1 路径才允许 exact `0x167B` fallback；`0x167B` 仍原样返回，只用于定位。客户端主动 command 12/13 仍透明转发。NIM 的既有成功 fallback 日志仍应保留。
+`network_mitm_observer.log` 只能出现 `SSL SYSTEM` 接受记录；不应出现 ordinary `SSL titleid`。
 
-保留的成功路径：原RegisterInternalPki type1返回0x167B → fallback_generate=0 → fallback_import=0 →真实ClientPki ID。原调用成功直接返回原ID；其他错误原样返回。Generate/Import失败不伪造成功，也不重试原身份。RemoveClientPki原样forward。证书CN仍是Nextendo Temporary Client，私钥只在内存且退出时清零。
+`/network_mitm/internal_pki.log` 只检查以下 metadata-only 记录：
 
-## 容量和判定
+```text
+program=... ctx=... CreateContextForSystem phase=...
+program=... ctx=... RegisterInternalPki phase=begin type=1
+program=... ctx=... RegisterInternalPki type=1 forward_result=0x0000167B
+program=... ctx=... fallback_generate result=0x00000000 origin=ssl_ipc
+program=... ctx=... fallback_import result=0x00000000 origin=ssl_ipc
+program=... ctx=... RegisterInternalPki phase=complete result=0x00000000
+```
 
-本版针对已观察到的 NIM、静态证明的 Account 与硬件报告确认的 NPNS 三个客户端，预留16个同时存在的session（包括非domain子对象）、16个domain、256个domain对象。不是可扩展到所有系统程序的通用版本；未经证据和容量审查不要扩大allowlist。每个session的64KiB IPC缓冲区不变。源码有管理器大小检查，打包有NSO BSS<3MiB及对比v2节省至少8MiB的检查。
+成功路径仍是：原始 `RegisterInternalPki(type=1)` 先调用；只有原始结果严格为 `0x0000167B` 时才调用 Generate 与 Import；成功后返回真实 SSL-service PkiId。原始成功和其他错误原样保留；不伪造 PkiId，不重试损坏身份，不改变 `RemoveClientPki`。
 
-- 首先：正常进入HOME，且仅配置中的 NIM、Account 与 NPNS 被接受。
-- PKI创建/导入：NIM 的 v2/v3 已实机成功；本 v2 新增 Account 与 NPNS 路径；Account 尚未宣称硬件成功，NPNS 尚未验证 fallback 后是否恢复。
-- DNS：关联动作出现对应dauth/accounts/baas/aauth查询才算推进；启动hosts列表不算实际查询。
-- Nextendo响应、新错误码和最终绑定结果分别记录，不混成一个成功判定。
+## 判定与回滚
 
-完成一次定位后，保存日志并按 README-ROLLBACK 移走整个模块目录；不要将本诊断版作为常驻模块，不要扩大候选或随机修改其他模块。
-
-日志无payload/账户内容；PKI日志8MiB封顶。没有新增日志时核对build和日志容量，不要扩大拦截范围。固件/密钥无需放到SD或交给模块。
+- 本包的第一判定：不再出现 `4200000000000666` 的 ordinary `ssl` 相关 panic。
+- 第二判定：NIM、Account、NPNS 是否继续完成 system `ssl:s` 的 exact `0x167B` fallback。
+- Account/NPNS 的业务最终结果仍需单独记录，不能仅凭 fallback 成功宣称账户已关联。
+- 测试结束后按 `README-ROLLBACK.md` 保存日志并移走整个模块目录；不要把该诊断包作为常驻模块。

@@ -308,9 +308,9 @@ void TestAccountLinkDiagnosticRoutingAndForwarding() {
     p.account_link_diagnostic = true;
     for (const auto candidate : AccountLinkDiagnosticProgramIds) {
         assert(IsAccountLinkDiagnosticProgram(candidate));
-        assert(p.ShouldMitm(candidate, ServiceRoute::OrdinarySsl, false, false));
+        assert(!p.ShouldMitm(candidate, ServiceRoute::OrdinarySsl, false, false));
         assert(!p.ShouldMitm(candidate, ServiceRoute::SystemSsl, false, false));
-        assert(p.ShouldTraceOrdinary(candidate));
+        assert(!p.ShouldTraceOrdinary(candidate));
     }
     assert(!p.ShouldMitm(Nim, ServiceRoute::OrdinarySsl, false, false));
     assert(p.ShouldMitm(Nim, ServiceRoute::SystemSsl, false, true));
@@ -385,5 +385,5 @@ void TestObservedErrorTrigger() {
 
 int main() {
     TestPolicy(); TestSynthetic(); TestRouting(); TestAccountLinkDiagnosticRoutingAndForwarding(); TestObservedErrorTrigger();
-    std::cout << "PASS: hard service/program routing, fixed ordinary candidates, ordinary command-8 raw forwarding, NIM, Account, and NPNS ssl:s fallback with allowlist capacity 3, legacy broad mode rejected, exact 0x167B trigger, error propagation, allocation failures, key wiping\n";
+    std::cout << "PASS: ssl:s-only service routing, ordinary service disabled, NIM, Account, and NPNS ssl:s fallback with allowlist capacity 3, legacy broad mode rejected, exact 0x167B trigger, error propagation, allocation failures, key wiping\n";
 }

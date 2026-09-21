@@ -9,9 +9,9 @@ mitm_program_ids = str!0100000000000025 010000000000001E 010000000000002F
 trace_internal_pki = u8!0x1
 enable_device_cert_fallback = u8!0x1
 device_cert_fallback_program_ids = str!0100000000000025 010000000000001E 010000000000002F
-; Ordinary ssl remains metadata-only for these hard-coded diagnostic candidates: qlaunch 1000,
-; LibAppletAuth 1011, systemWeb 1042, openWeb 1043. No IDs are configurable.
-enable_account_link_diagnostic = u8!0x1
+; Ordinary ssl MITM is disabled in this build after the observed 0xFFFE module abort.
+; Keep this stale compatibility setting off.
+enable_account_link_diagnostic = u8!0x0
 should_mitm_all = u8!0x0
 should_dump_ssl_traffic = u8!0x0
 should_disable_ssl_verification = u8!0x0

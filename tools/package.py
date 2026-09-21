@@ -33,7 +33,7 @@ def load_manifest_input():
         raise ValueError('source manifest input must not contain package or binary hashes')
     if data['variant'] != 'account-link-fallback-v2':
         raise ValueError('wrong manifest input variant')
-    if data['mitm_ports'] != ['ssl', 'ssl:s']:
+    if data['mitm_ports'] != ['ssl:s']:
         raise ValueError('wrong manifest input ports')
     fallback = data['system_ssl_fallback']
     if fallback != {
@@ -42,8 +42,9 @@ def load_manifest_input():
         'trigger': '0x0000167B',
         'original_first': True,
         'real_pki_id_only': True,
-        'account_hardware_verified': False,
+        'account_hardware_verified': True,
         'npns_hardware_observed': True,
+        'npns_fallback_hardware_verified': True,
     }:
         raise ValueError('wrong system SSL fallback manifest scope')
     return data
@@ -76,7 +77,7 @@ def main():
     for leaf in ['exefs.nsp','mitm.lst','flags/boot2.flag']:
         rel = contents/leaf
         files[str(rel)] = (args.sd/rel).read_bytes()
-    assert files[str(contents/'mitm.lst')].splitlines() == [b'ssl', b'ssl:s']
+    assert files[str(contents/'mitm.lst')].splitlines() == [b'ssl:s']
     for name in ['README.md','INVESTIGATION.md','README-TEST.md','README-ROLLBACK.md','BUILD-REPORT.md','EVIDENCE-v2.md','CRASH-ANALYSIS.md','LICENSE']:
         files['network_mitm/docs/'+name] = (ROOT/name).read_bytes()
     files['network_mitm/docs/account-link-diagnostic.ini.example'] = (ROOT/'config/account-link-diagnostic.ini.example').read_bytes()

@@ -25,20 +25,16 @@
 
 ## Current account-link-fallback-v2 implementation
 
-- Registers exactly `ssl` and `ssl:s` with the existing single ServerManager:
+- Registers only `ssl:s` with the existing single ServerManager:
   16 sessions, 16 domains, 256 objects, two workers, `0x10000` pointer buffer.
 - NIM, Account, and NPNS remain solely on `ssl:s`. Their fallback remains
   original-first and is gated to type 1 plus original `0x0000167B`; other results
   remain original.
-- Ordinary `ssl` is disabled unless `enable_account_link_diagnostic=1` and is
-  hard-limited to qlaunch `0100000000001000`, LibAppletAuth
-  `0100000000001011`, systemWeb `0100000000001042`, and openWeb
-  `0100000000001043`. These IDs cannot use `ssl:s`; NIM cannot use ordinary
-  `ssl`; `should_mitm_all` cannot expand selection.
-- For an accepted ordinary candidate it records only build marker, program ID,
-  service, context ID, original CreateContext result, and command-8 type/raw
-  result. Its RegisterInternalPki never invokes fallback or Generate/Import;
-  client-issued command 12/13 remains transparent forwarding.
+- Ordinary `ssl` is not registered in the current safety release. The previous
+  optional ordinary diagnostic accepted systemWeb `0100000000001042` and was
+  followed by a network_mitm `4200000000000666` abort; no ordinary client is
+  accepted now, even if a stale `enable_account_link_diagnostic` setting remains.
+  `should_mitm_all` cannot expand the sole `ssl:s` route.
 - No hostname, buffer, payload, token, certificate, private key, account
   content, CA/trust, verification, DNS, handshake, or identity behavior is
   captured or changed.

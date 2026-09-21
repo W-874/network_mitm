@@ -1,7 +1,8 @@
 # account-link-fallback-v2 build report
 
-This source tree contains a **controlled diagnostic** and now has a clean target
-build plus binary check. It is not hardware-verified. The previously built
+This source tree contains a **controlled diagnostic**. The earlier Account-only
+variant had a clean target build and binary check; the current NPNS extension
+requires a new target build and package. It is not hardware-verified. The previously built
 `resource-v3` package is historical evidence only and must not be renamed,
 repacked, or installed as this variant.
 
@@ -15,7 +16,8 @@ repacked, or installed as this variant.
   `2231336` bytes, and mapped image end (page aligned) `2547712` bytes.
 - Binary checker: passed; ports are exactly `ssl`, then `ssl:s`; variant is
   `account-link-fallback-v2`.
-- Account hardware result: unknown; no console claim is made by this build.
+- Account hardware result: unknown; NPNS hardware observation is from the
+  supplied crash/fatal reports, not fallback success.
 
 ## Scope
 
@@ -33,7 +35,7 @@ repacked, or installed as this variant.
   does not record hostnames, IPC/TLS buffers, account data, tokens,
   certificates, or private keys; it does not change TLS trust, verification,
   DNS, or handshake behavior.
-- Account `010000000000001E` uses the same `ssl:s` system Context boundary as NIM; it is statically proven but not hardware-verified.
+- Account `010000000000001E` uses the same `ssl:s` system Context boundary as NIM; it is statically proven but not hardware-verified. NPNS `010000000000002F` is hardware-observed returning `0x167B` but this extension has not yet been target-built.
 - Uses the existing single ServerManager: 16 sessions, 16 domains, 256 domain
   objects, two workers, and a 64 KiB pointer buffer. It does not restore
   `should_mitm_all` or add workers/resource pools.

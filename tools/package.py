@@ -37,12 +37,13 @@ def load_manifest_input():
         raise ValueError('wrong manifest input ports')
     fallback = data['system_ssl_fallback']
     if fallback != {
-        'program_ids': ['0100000000000025', '010000000000001E'],
+        'program_ids': ['0100000000000025', '010000000000001E', '010000000000002F'],
         'type': 1,
         'trigger': '0x0000167B',
         'original_first': True,
         'real_pki_id_only': True,
         'account_hardware_verified': False,
+        'npns_hardware_observed': True,
     }:
         raise ValueError('wrong system SSL fallback manifest scope')
     return data

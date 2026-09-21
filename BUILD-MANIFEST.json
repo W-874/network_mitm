@@ -11,14 +11,16 @@
   "targeted_mode_default": true,
   "recommended_mitm_program_ids": [
     "0100000000000025",
-    "010000000000001E"
+    "010000000000001E",
+    "010000000000002F"
   ],
   "recommended_fallback_program_ids": [
     "0100000000000025",
-    "010000000000001E"
+    "010000000000001E",
+    "010000000000002F"
   ],
   "original_result_trigger": "0x0000167B",
-  "scope": "NIM and statically proven Account ssl:s type-1 fallback plus fixed-candidate ordinary ssl metadata-only diagnostic",
+  "scope": "NIM, Account, and NPNS ssl:s type-1 fallback plus fixed-candidate ordinary ssl metadata-only diagnostic",
   "mitm_ports": [
     "ssl",
     "ssl:s"
@@ -53,12 +55,14 @@
   "system_ssl_fallback": {
     "program_ids": [
       "0100000000000025",
-      "010000000000001E"
+      "010000000000001E",
+      "010000000000002F"
     ],
     "type": 1,
     "trigger": "0x0000167B",
     "original_first": true,
     "real_pki_id_only": true,
-    "account_hardware_verified": false
+    "account_hardware_verified": false,
+    "npns_hardware_observed": true
   }
 }

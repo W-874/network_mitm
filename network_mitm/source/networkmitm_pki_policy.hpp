@@ -5,11 +5,12 @@
 #include <cstdint>
 
 namespace nextendo::pki {
-// This experiment is intentionally restricted to the observed NIM and Account clients.
+// This experiment is intentionally restricted to the observed NIM, Account, and NPNS clients.
 // Keep these values in the policy layer so malformed settings cannot widen the
 // MITM/fallback client set at runtime.
 constexpr std::uint64_t NimProgramId = 0x0100000000000025ULL;
 constexpr std::uint64_t AccountProgramId = 0x010000000000001EULL;
+constexpr std::uint64_t NpnsProgramId = 0x010000000000002FULL;
 
 // Account-link diagnostics are deliberately a fixed, reviewed set. These IDs
 // are not parsed from configuration: a setting must never turn ordinary ssl
@@ -40,7 +41,7 @@ constexpr bool AccountLinkDiagnosticCandidatesAreUnique() {
 }
 static_assert(AccountLinkDiagnosticCandidatesAreUnique());
 
-constexpr std::size_t MaxPrograms = 2;
+constexpr std::size_t MaxPrograms = 3;
 
 struct Policy {
     bool enabled = false;
@@ -48,8 +49,8 @@ struct Policy {
     std::size_t count = 0;
 
     bool Contains(std::uint64_t program) const {
-        // Defense in depth: only NIM and Account are allowed targets.
-        if (program != NimProgramId && program != AccountProgramId) return false;
+        // Defense in depth: only NIM, Account, and NPNS are allowed targets.
+        if (program != NimProgramId && program != AccountProgramId && program != NpnsProgramId) return false;
         for (std::size_t i = 0; i < count; ++i)
             if (programs[i] == program) return true;
         return false;
@@ -82,7 +83,7 @@ struct RoutingPolicy {
         (void)application;
         (void)legacy_mitm_all;
         if (!targeted) return false;
-        // Hard service × Program-ID separation: NIM and Account use ssl:s,
+        // Hard service × Program-ID separation: NIM, Account, and NPNS use ssl:s,
         // and the account-link candidates use ordinary ssl in this diagnostic.
         if (service == ServiceRoute::SystemSsl) return Targets(program);
         return account_link_diagnostic && IsAccountLinkDiagnosticProgram(program);
@@ -102,8 +103,8 @@ struct RoutingPolicy {
     }
 };
 
-// Exact NIM and/or Account Program IDs, with optional ASCII spaces.
-// Accepts: empty, "0100000000000025", "010000000000001E", or both space-separated.
+// Exact NIM, Account, and/or NPNS Program IDs, with optional ASCII spaces.
+// Accepts: empty, single ID, two IDs, or all three space-separated.
 // Rejects any other ID, lists with commas/semicolons, or malformed input.
 inline bool ParsePrograms(Policy &policy, const char *data, std::size_t size) {
     policy.programs = {};
@@ -138,8 +139,8 @@ inline bool ParsePrograms(Policy &policy, const char *data, std::size_t size) {
             value = (value << 4) | digit;
         }
 
-        // Only NIM and Account are allowed
-        if (value != NimProgramId && value != AccountProgramId) {
+        // Only NIM, Account, and NPNS are allowed
+        if (value != NimProgramId && value != AccountProgramId && value != NpnsProgramId) {
             policy.count = 0;
             return false;
         }

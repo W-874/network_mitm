@@ -3,11 +3,12 @@
 [network_mitm]
 enable_ssl = u8!0x1
 targeted_device_pki_mode = u8!0x1
-; Keep the hardware-verified NIM ssl:s fallback and the statically proven Account ssl:s path restricted to these two exact IDs.
-mitm_program_ids = str!0100000000000025 010000000000001E
+; Keep the hardware-verified NIM ssl:s fallback, the statically proven Account ssl:s path,
+; and the hardware-observed NPNS ssl:s path restricted to these three exact IDs.
+mitm_program_ids = str!0100000000000025 010000000000001E 010000000000002F
 trace_internal_pki = u8!0x1
 enable_device_cert_fallback = u8!0x1
-device_cert_fallback_program_ids = str!0100000000000025 010000000000001E
+device_cert_fallback_program_ids = str!0100000000000025 010000000000001E 010000000000002F
 ; Ordinary ssl remains metadata-only for these hard-coded diagnostic candidates: qlaunch 1000,
 ; LibAppletAuth 1011, systemWeb 1042, openWeb 1043. No IDs are configurable.
 enable_account_link_diagnostic = u8!0x1

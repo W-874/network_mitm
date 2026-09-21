@@ -36,9 +36,10 @@
 
 ## account-link-fallback-v2 constraints
 
-- v2 preserves NIM's `ssl:s` fallback and adds Account `010000000000001E`
-  only: original-first; only these two exact IDs, type 1, and original
-  `0x0000167B` may generate/import a real PKI ID.
+- v2 preserves NIM's `ssl:s` fallback, adds Account `010000000000001E`, and
+  now adds hardware-observed NPNS `010000000000002F`: original-first; only
+  these three exact IDs, type 1, and original `0x0000167B` may generate/import
+  a real PKI ID.
 - It uses one ServerManager only: 16 sessions, 16 domains, 256 objects, two
   workers, and a `0x10000` pointer buffer. Do not add a manager, workers, or
   resource pool.
@@ -46,8 +47,8 @@
   `enable_account_link_diagnostic=1`. Its hard-coded candidates are only
   qlaunch `0100000000001000`, LibAppletAuth `0100000000001011`, systemWeb
   `0100000000001042`, and openWeb `0100000000001043`.
-- Service separation is strict: NIM and Account are only `ssl:s`; the four
-  candidates are only ordinary `ssl`; no configurable ID, missing configuration, or
+- Service separation is strict: NIM, Account, and NPNS are only `ssl:s`; the
+  four candidates are only ordinary `ssl`; no configurable ID, missing configuration, or
   `should_mitm_all` may widen either route.
 - For the four ordinary candidates, record only build marker, program ID,
   service, context ID, original CreateContext result, and command-8 type/result.
@@ -79,3 +80,11 @@ adds this exact Program ID to the strict system-SSL allowlist and reuses the
 existing original-first exact-`0x0000167B` fallback. Do not add ordinary `ssl`,
 do not intercept generic HIPC manager commands, and do not broaden any other
 program or PKI type.
+
+## NPNS hardware evidence (2026-09-21)
+
+Four crash/fatal report pairs identify NPNS `010000000000002F` as a direct
+repeated `0x0000167B` / `2123-0011` producer. The current implementation adds
+NPNS to the strict `ssl:s` allowlist and reuses the same exact type-1 fallback;
+`ns` and `friends` `0x25A0B` reports are not fallback targets. NPNS fallback
+success remains unverified until the next controlled console run.

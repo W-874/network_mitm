@@ -1,6 +1,6 @@
 # Account Link fallback v2：一次受控测试
 
-本版以已成功启动的 resource-v3 为基线：保留 NIM 的临时 PKI fallback，并为静态证明的 Account `ssl:s` system-context type-1 路径增加同一精确 fallback；普通 `ssl` 仍仅作元数据观察。它不是账户认证绕过，也不会读取 TLS/账户内容或改动信任、DNS、身份材料。
+本版以已成功启动的 resource-v3 为基线：保留 NIM 的临时 PKI fallback，为静态证明的 Account `ssl:s` system-context type-1 路径增加同一精确 fallback，并加入硬件报告确认的 NPNS `ssl:s` 0x167B 路径；普通 `ssl` 仍仅作元数据观察。它不是账户认证绕过，也不会读取 TLS/账户内容或改动信任、DNS、身份材料。
 
 ## 安装
 
@@ -13,10 +13,10 @@
 [network_mitm]
 enable_ssl = u8!0x1
 targeted_device_pki_mode = u8!0x1
-mitm_program_ids = str!0100000000000025 010000000000001E
+mitm_program_ids = str!0100000000000025 010000000000001E 010000000000002F
 trace_internal_pki = u8!0x1
 enable_device_cert_fallback = u8!0x1
-device_cert_fallback_program_ids = str!0100000000000025 010000000000001E
+device_cert_fallback_program_ids = str!0100000000000025 010000000000001E 010000000000002F
 enable_account_link_diagnostic = u8!0x1
 should_mitm_all = u8!0x0
 should_dump_ssl_traffic = u8!0x0
@@ -34,7 +34,7 @@ should_disable_ssl_verification = u8!0x0
 account-link-fallback-v2 ports=ssl,ssl:s sessions=16 domains=16 objects=256 workers=2 manager_bytes=...
 ```
 
-普通 `ssl` 仅允许固定四候选且永不 fallback；`ssl:s` 仅允许配置中精确的 NIM 与 Account；should_mitm_all 即使残留1也不会扩大范围。targeted=0会拒绝所有客户端，不恢复旧模式。
+普通 `ssl` 仅允许固定四候选且永不 fallback；`ssl:s` 仅允许配置中精确的 NIM、Account 与 NPNS；should_mitm_all 即使残留1也不会扩大范围。targeted=0会拒绝所有客户端，不恢复旧模式。
 
 `/network_mitm/internal_pki.log` 继续追加，以 build 和 boot 标记区分。单次点击 Account Link 后，只检查以下无敏感元数据：
 
@@ -50,10 +50,10 @@ program=... ctx=... RegisterInternalPki service=ssl command=8 type=... forward_r
 
 ## 容量和判定
 
-本版针对已观察到的 NIM 与静态证明的 Account 两个客户端，预留16个同时存在的session（包括非domain子对象）、16个domain、256个domain对象。不是可扩展到所有系统程序的通用版本；未经证据和容量审查不要扩大allowlist。每个session的64KiB IPC缓冲区不变。源码有管理器大小检查，打包有NSO BSS<3MiB及对比v2节省至少8MiB的检查。
+本版针对已观察到的 NIM、静态证明的 Account 与硬件报告确认的 NPNS 三个客户端，预留16个同时存在的session（包括非domain子对象）、16个domain、256个domain对象。不是可扩展到所有系统程序的通用版本；未经证据和容量审查不要扩大allowlist。每个session的64KiB IPC缓冲区不变。源码有管理器大小检查，打包有NSO BSS<3MiB及对比v2节省至少8MiB的检查。
 
-- 首先：正常进入HOME，且仅配置中的 NIM 与 Account 被接受。
-- PKI创建/导入：NIM 的 v2/v3 已实机成功；本 v2 仅新增 Account 路径，尚未宣称 Account 硬件成功。
+- 首先：正常进入HOME，且仅配置中的 NIM、Account 与 NPNS 被接受。
+- PKI创建/导入：NIM 的 v2/v3 已实机成功；本 v2 新增 Account 与 NPNS 路径；Account 尚未宣称硬件成功，NPNS 尚未验证 fallback 后是否恢复。
 - DNS：关联动作出现对应dauth/accounts/baas/aauth查询才算推进；启动hosts列表不算实际查询。
 - Nextendo响应、新错误码和最终绑定结果分别记录，不混成一个成功判定。
 

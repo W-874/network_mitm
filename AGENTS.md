@@ -43,25 +43,20 @@
 - It uses one ServerManager only: 16 sessions, 16 domains, 256 objects, two
   workers, and a `0x10000` pointer buffer. Do not add a manager, workers, or
   resource pool.
-- Ordinary `ssl` is an opt-in, metadata-only diagnostic when
-  `enable_account_link_diagnostic=1`. Its hard-coded candidates are only
-  qlaunch `0100000000001000`, LibAppletAuth `0100000000001011`, systemWeb
-  `0100000000001042`, and openWeb `0100000000001043`.
-- Service separation is strict: NIM, Account, and NPNS are only `ssl:s`; the
-  four candidates are only ordinary `ssl`; no configurable ID, missing configuration, or
-  `should_mitm_all` may widen either route.
-- For the four ordinary candidates, record only build marker, program ID,
-  service, context ID, original CreateContext result, and command-8 type/result.
-  Ordinary RegisterInternalPki must return the original result and never
-  trigger/issue fallback Generate/Import. Client-initiated command 12/13 stays
-  transparently forwarded by the existing context wrapper.
+- Ordinary `ssl` is not registered in the current release. The old optional
+  metadata-only diagnostic was removed after the observed network_mitm
+  `4200000000000666` abort following systemWeb `0100000000001042`
+  `CreateContext`. A stale `enable_account_link_diagnostic=1` must not reopen it.
+- Service separation is strict: NIM, Account, and NPNS are only `ssl:s`; no
+  configurable ID, missing configuration, or `should_mitm_all` may widen the
+  route.
 
 ## Workflow and stop conditions
 
 - Separate source/host evidence from target-build and hardware evidence.
-  account-link-fallback-v2 has now passed a clean target build and binary
-  check, but is not installed or hardware-verified; Account hardware success
-  remains unknown until the controlled test.
+  account-link-fallback-v2 has passed a clean target build, binary check, and
+  metadata-only hardware fallback trace; final account-link business success
+  remains unknown until a controlled test.
 - Do not package, rename, or install resource-v3 output as account-link-fallback-v2.
 - The next hardware question is whether Account reaches its proven `ssl:s`
   Context command 8 type-1 path and whether the exact fallback removes local
@@ -87,7 +82,7 @@ Four crash/fatal report pairs identify NPNS `010000000000002F` as a direct
 repeated `0x0000167B` / `2123-0011` producer. The current implementation adds
 NPNS to the strict `ssl:s` allowlist and reuses the same exact type-1 fallback;
 `ns` and `friends` `0x25A0B` reports are not fallback targets. NPNS fallback
-success remains unverified until the next controlled console run.
+business success remains unverified until the next controlled console run.
 
 ## Current release safety override (2026-09-21)
 

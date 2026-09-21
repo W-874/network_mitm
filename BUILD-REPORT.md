@@ -14,28 +14,24 @@ renamed, repacked, or installed as this variant.
   documentation-file hashes.
 - Target toolchain: devkitA64 `aarch64-none-elf-g++ 15.2.0`.
 - The checker must report Program ID `4200000000000666`, NSO BSS below 3 MiB,
-  and ports exactly `ssl`, then `ssl:s`; variant is
+  and the only reserved port is `ssl:s`; variant is
   `account-link-fallback-v2`.
-- Account hardware result: unknown; NPNS hardware observation is from the
-  supplied crash/fatal reports, not fallback success.
+- Account and NPNS system-context fallback were observed in the latest metadata-only trace: original `0x167B`, successful Generate/Import, and real PkiId. Full Account Link business completion remains unverified.
 
 ## Scope
 
 - Retains resource-v3's hardware-proven NIM (`0100000000000025`) `ssl:s`
   fallback: original command 8 first; only type 1 plus original `0x0000167B`
   may generate/import a real PKI ID.
-- Adds the exact Account `ssl:s` type-1 fallback and retains an opt-in ordinary `ssl` diagnostic for exactly qlaunch
-  (`0100000000001000`), LibAppletAuth (`0100000000001011`), systemWeb
-  (`0100000000001042`), and openWeb (`0100000000001043`). It records only the
-  build marker, program ID, service, context ID, command-0 result, and
-  command-8 type/result.
-- Ordinary `RegisterInternalPki` has no fallback: its command 8 path never
-  initiates Generate/Import. A client that explicitly issues commands 12/13
-  still receives the existing transparent forwarding behavior. The diagnostic
-  does not record hostnames, IPC/TLS buffers, account data, tokens,
-  certificates, or private keys; it does not change TLS trust, verification,
-  DNS, or handshake behavior.
-- Account `010000000000001E` uses the same `ssl:s` system Context boundary as NIM; it is statically proven but not hardware-verified. NPNS `010000000000002F` is hardware-observed returning `0x167B`; fallback success remains unverified.
+- Adds the exact Account `ssl:s` type-1 fallback and the hardware-observed NPNS
+  `ssl:s` type-1 fallback. Ordinary `ssl` is not registered in this release.
+  The prior ordinary diagnostic accepted only fixed candidates but is disabled
+  after the `4200000000000666` abort observed immediately after systemWeb
+  `CreateContext`.
+- Account `010000000000001E` and NPNS `010000000000002F` now have metadata-only
+  traces showing original `0x167B`, successful Generate/Import, and a real PkiId.
+  This does not prove the final account-link business result.
+
 - Uses the existing single ServerManager: 16 sessions, 16 domains, 256 domain
   objects, two workers, and a 64 KiB pointer buffer. It does not restore
   `should_mitm_all` or add workers/resource pools.
@@ -64,7 +60,7 @@ python3 network_mitm/tools/package.py \
 
 Only after all commands succeed may the generated ZIP and its generated
 `network_mitm/docs/BUILD-MANIFEST.json` be treated as the release artifact.
-The checker must report both ports in order: `ssl`, then `ssl:s`. The package
+The checker must report exactly one port: `ssl:s`. The package
 manifest, not this source document, is authoritative for the final package
 file hashes.
 

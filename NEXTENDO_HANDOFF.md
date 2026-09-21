@@ -9,7 +9,7 @@
   successful resource-v3 NIM fallback. It includes the statically proven
   Account path and the hardware-observed NPNS `ssl:s` path. Host validation and
   static review pass; the generated package manifest is authoritative for the
-  clean target build/package, while NPNS hardware confirmation remains pending.
+  clean target build/package, while final Account Link business completion remains pending.
 
 ## What hardware has established
 

@@ -76,7 +76,7 @@ Context interfaces are ordinary AMS_SF_DEFINE_INTERFACE children, not root MITM 
 
 ## Selection and v2 modifications
 
-Both root ShouldMitm callbacks use one program-list policy before session acceptance. The ssl:s server registration previously specified SslServiceImpl; v2 registers SslServiceForSystemImpl so its matching callback is used. Targeted=true overrides should_mitm_all on both ports, including normal applications. Missing new configuration means targeted=true, empty lists and fallback=false. Explicit targeted=false retains upstream service-selection rules but disables the experiment's per-client options; it is not a recommended test configuration.
+The current release registers only the `ssl:s` server. Its root ShouldMitm callback uses the exact system program-list policy before session acceptance. Ordinary `ssl` is deliberately not registered after the observed module abort; `should_mitm_all` cannot widen the route. Missing new configuration means targeted=true, empty lists and fallback=false. Explicit targeted=false retains upstream service-selection rules but disables the experiment's per-client options; it is not a recommended test configuration.
 
 Per-client options are computed at session acceptance and passed to the system context. Only membership in both MITM and fallback lists permits fallback. Trace does not broaden acceptance. Parser accepts at most16 exact16-hex IDs, rejects the whole malformed/truncated/duplicate list, and accepts an empty list as no targets. Fallback forces metadata logging only for that selected client.
 

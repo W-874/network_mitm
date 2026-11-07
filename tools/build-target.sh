@@ -34,6 +34,8 @@ docker run --rm --network none \
         make -C dependencies/libnx install
         make clean
         make -j8 pack
+        # Let the invoking workspace user write provenance beside the artifacts.
+        chown --reference=BUILD-DEPS.json out
     '
 if [[ $(git rev-parse HEAD) != "$source_commit" || -n $(git status --porcelain) ]]; then
     echo 'Source changed during the build; refusing to record release provenance.' >&2

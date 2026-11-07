@@ -1,12 +1,12 @@
-# network_mitm: Account Link fallback v2
+# network_mitm: Account Link fallback v2 — HOS 23.0.1 candidate
 
-A narrowly scoped, resource-bounded `ssl:s` Client-PKI fallback for **HOS 22.5.0 / Atmosphère 1.11.2 / emuMMC**, based on upstream `c15d659600760ac83151e38660c468244176c5b0` with unchanged Atmosphere-libs `d3083af1827cd6ca2a96feb9316eb85cd01bae1f`.
+A narrowly scoped, resource-bounded `ssl:s` Client-PKI fallback targeting **HOS 23.0.1 / Atmosphère 1.12.1 / emuMMC**. This candidate updates Atmosphere-libs to `cf48d233` and libnx to `cd824f90`; see [compatibility evidence and limits](HOS23-COMPATIBILITY.md). Account completion on HOS 23 remains unverified.
 
 > This project does not imitate or repair a Nintendo identity. Its purpose is to let Horizon reach a third-party Nextendo/Prelude service that does not require a Nintendo client certificate when the console's existing `DeviceClientCert` registration fails.
 
 ## Verified status
 
-Hardware testing in the target environment confirmed:
+Historical hardware testing on **HOS 22.5.0 / Atmosphère 1.11.2**, before this dependency update, confirmed:
 
 - NIM (`0100000000000025`) completed the fallback successfully.
 - Account (`010000000000001E`) completed the fallback successfully.
@@ -16,7 +16,7 @@ Hardware testing in the target environment confirmed:
 
 **Known limitation:** deleting a user that is already linked still fails with **2002-0001**. Linked-user deletion is not supported or claimed by this release.
 
-These results apply only to the environment above. Do not infer compatibility with other HOS or Atmosphère versions.
+These historical results do not verify this new binary on HOS 22.5 or 23. The HOS 23 update repairs the old library's deterministic startup version rejection; it does not establish end-to-end account success.
 
 ## Exact interception boundary
 
@@ -76,6 +76,6 @@ The package contains only the module and public documentation. It does not inclu
 
 ## Build and review
 
-Build using the upstream Docker recipe or the equivalent devkitPro environment documented in [BUILD-REPORT.md](BUILD-REPORT.md). `tools/test-host.sh` performs local host-side policy and orchestration checks; it does not contact Nintendo production endpoints. `tools/check-binary.py` verifies the NSP memory budget and service declaration. The generated package manifest records the exact target build and package hashes.
+Initialize the pinned submodules and run `bash tools/build-target.sh`; the container has networking disabled and installs the pinned libnx from source. See [BUILD-REPORT.md](BUILD-REPORT.md). `tools/test-host.sh` checks routing, fallback and the actual upstream firmware initializer with mocked platform I/O. `tools/check-binary.py` checks the NSP identity and memory budget. Packaging requires a matching clean source/build stamp.
 
 This project is licensed under GPLv2; see [LICENSE](LICENSE).

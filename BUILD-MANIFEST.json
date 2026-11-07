@@ -1,8 +1,8 @@
 {
-  "variant": "account-link-fallback-v2",
+  "variant": "account-link-fallback-v2-hos2301",
   "target": {
-    "hos": "22.5.0",
-    "atmosphere": "1.11.2",
+    "hos": "23.0.1",
+    "atmosphere": "1.12.1",
     "environment": "emuMMC"
   },
   "hardware_verified": false,
@@ -50,6 +50,19 @@
     "trigger": "0x0000167B",
     "original_first": true,
     "real_pki_id_only": true,
+    "account_hardware_verified": false,
+    "npns_hardware_observed": false,
+    "npns_fallback_hardware_verified": false,
+    "hardware_evidence_firmware": "22.5.0 (historical); no HOS23 hardware verification"
+  },
+  "compatibility_status": "candidate targeting HOS23.0.1; hardware boot and account flow unverified; consult generated target-build evidence",
+  "historical_target": {
+    "hos": "22.5.0",
+    "atmosphere": "1.11.2"
+  },
+  "historical_fallback_evidence": {
+    "firmware": "22.5.0",
+    "atmosphere": "1.11.2",
     "account_hardware_verified": true,
     "npns_hardware_observed": true,
     "npns_fallback_hardware_verified": true

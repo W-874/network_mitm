@@ -20,6 +20,10 @@
 #include <stratosphere.hpp>
 
 namespace ams {
+// Older libstratosphere aborts during __appInit on firmware 23, before Main.
+// Require the upstream implementation that recognizes the target firmware.
+static_assert(hos::Version_Max >= hos::Version_23_0_1);
+
 namespace impl {
 #define AMS_DEFINE_SYSTEM_THREAD(__AMS_THREAD_PRIORITY__, __AMS_MODULE__,      \
                                  __AMS_THREAD_NAME__)                          \

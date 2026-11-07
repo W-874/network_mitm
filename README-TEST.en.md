@@ -2,15 +2,17 @@
 
 **English** · [中文](README-TEST.md)
 
-For **HOS 22.5.0 / Atmosphère 1.11.2 / emuMMC** systems that already have Nextendo Prelude configured.
+Candidate targeting **HOS 23.0.1 / Atmosphère 1.12.1 / emuMMC**. The old library firmware rejection is fixed; device boot/account completion remain unverified for this binary. See [compatibility evidence](HOS23-COMPATIBILITY.md).
+
+Prelude v4.0.19 still refuses Account Link fallback on firmware 23 and bundles the old module. Its button does not install this candidate. Before updating an existing installation, copy the entire `atmosphere/contents/4200000000000666` directory to your computer as a backup.
 
 > New installations do not require you to create or back up a `4200000000000666` folder, and you do not need to place `exefs.nsp`, `mitm.lst`, or `boot2.flag` individually. Extract the complete release package as described below.
 
 ## Installation
 
-1. Download the following file from [Releases](https://github.com/W-874/network_mitm/releases/tag/v2.0.0-account-link-fallback):
+1. Use the candidate delivered by this build (the old release ZIP does not support firmware 23):
 
-   `network_mitm-account-link-fallback-v2-system-only.zip`
+   `network_mitm-hos2301-ams1121-candidate.zip`
 
 2. **Fully power off** the Switch, remove the SD card, and connect it to your computer.
 
@@ -47,7 +49,7 @@ For **HOS 22.5.0 / Atmosphère 1.11.2 / emuMMC** systems that already have Nexte
 - Keep the existing Prelude hosts, DNS, and trust configuration unchanged.
 - Do not add another Program ID, CA, or TLS-verification bypass.
 - Do not use this module with Nintendo production endpoints.
-- Nintendo Account Link and Mario Kart 8 Deluxe online play have been verified.
+- The old HOS 22.5 binary has successful Account Link / Mario Kart 8 Deluxe records; this new HOS 23.0.1 binary has no hardware verification yet.
 - Deleting an already linked user still fails with `2002-0001` and is not currently supported.
 
 ## Uninstalling

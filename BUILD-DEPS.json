@@ -1,0 +1,7 @@
+{
+  "container": "devkitpro/devkita64@sha256:1fc388c3a0d34bd2045a6dadcb1020e069d5f876a187fd705de14b4440c00282",
+  "compiler": "aarch64-none-elf-g++ (devkitA64) 15.2.0",
+  "atmosphere_libs": "cf48d23375cf36742876f4b014971b2ebabc6dc8",
+  "libnx": "cd824f90c48e4210827df7c09dd0f7302f0dc051",
+  "variant": "account-link-fallback-v2-hos2301"
+}

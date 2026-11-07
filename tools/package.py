@@ -31,7 +31,7 @@ def load_manifest_input():
         raise ValueError(f'manifest input missing: {sorted(missing)}')
     if 'files' in data:
         raise ValueError('source manifest input must not contain package or binary hashes')
-    if data['variant'] != 'account-link-fallback-v2':
+    if data['variant'] != 'account-link-fallback-v2-hos2301':
         raise ValueError('wrong manifest input variant')
     if data['mitm_ports'] != ['ssl:s']:
         raise ValueError('wrong manifest input ports')
@@ -42,9 +42,10 @@ def load_manifest_input():
         'trigger': '0x0000167B',
         'original_first': True,
         'real_pki_id_only': True,
-        'account_hardware_verified': True,
-        'npns_hardware_observed': True,
-        'npns_fallback_hardware_verified': True,
+        'account_hardware_verified': False,
+        'npns_hardware_observed': False,
+        'npns_fallback_hardware_verified': False,
+        'hardware_evidence_firmware': '22.5.0 (historical); no HOS23 hardware verification',
     }:
         raise ValueError('wrong system SSL fallback manifest scope')
     return data
@@ -53,7 +54,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--sd', type=Path, default=ROOT / 'out/sd')
     parser.add_argument('--output', type=Path)
-    parser.add_argument('--variant', choices=['account-link-fallback-v2'], default='account-link-fallback-v2')
+    parser.add_argument('--variant', choices=['account-link-fallback-v2-hos2301'], default='account-link-fallback-v2-hos2301')
     parser.add_argument('--source-commit')
     parser.add_argument('--check-input', action='store_true',
                         help='validate only the clean-tree manifest input; do not read or package out/sd')
@@ -68,6 +69,16 @@ def main():
         raise ValueError('refusing to package from a dirty source tree')
     if git('rev-parse', args.source_commit) != git('rev-parse', 'HEAD'):
         raise ValueError('source-commit must be the clean checked-out HEAD')
+    dependencies = json.loads((ROOT/'BUILD-DEPS.json').read_text())
+    build = json.loads((ROOT/'out/TARGET-BUILD.json').read_text())
+    for path, key in [('Atmosphere-libs', 'atmosphere_libs'), ('dependencies/libnx', 'libnx')]:
+        actual = subprocess.check_output(['git', '-C', str(ROOT/path), 'rev-parse', 'HEAD'], text=True).strip()
+        if actual != dependencies[key] or actual != git('rev-parse', f'HEAD:{path}'):
+            raise ValueError(f'{path}: dependency does not match the source pin')
+    if any(build.get(key) != value for key, value in dependencies.items()):
+        raise ValueError('target build dependencies do not match BUILD-DEPS.json')
+    if build.get('source_commit') != git('rev-parse', 'HEAD') or build.get('source_dirty') is not False:
+        raise ValueError('target build must be from the current clean source HEAD')
     subprocess.run(['python3', str(ROOT/'tools/check-binary.py'), '--sd', str(args.sd)], cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
     title = re.search(r'^TITLE_ID\s*:=\s*([0-9A-Fa-f]{16})$', (ROOT/'Makefile').read_text(), re.M)[1]
     npdm_title = json.loads((ROOT/'network_mitm/network_mitm.json').read_text())['title_id']
@@ -77,9 +88,12 @@ def main():
     for leaf in ['exefs.nsp','mitm.lst','flags/boot2.flag']:
         rel = contents/leaf
         files[str(rel)] = (args.sd/rel).read_bytes()
+    if hashlib.sha256(files[str(contents/'exefs.nsp')]).hexdigest() != build['nsp_sha256']:
+        raise ValueError('NSP differs from the recorded clean target build')
     assert files[str(contents/'mitm.lst')].splitlines() == [b'ssl:s']
-    for name in ['README.md','INVESTIGATION.md','README-TEST.md','README-ROLLBACK.md','BUILD-REPORT.md','EVIDENCE-v2.md','CRASH-ANALYSIS.md','LICENSE']:
+    for name in ['README.md','INVESTIGATION.md','README-TEST.md','README-TEST.en.md','README-ROLLBACK.md','BUILD-REPORT.md','HOS23-COMPATIBILITY.md','BUILD-DEPS.json','EVIDENCE-v2.md','CRASH-ANALYSIS.md','LICENSE']:
         files['network_mitm/docs/'+name] = (ROOT/name).read_bytes()
+    files['network_mitm/docs/TARGET-BUILD.json'] = (json.dumps(build, indent=2)+'\n').encode()
     files['network_mitm/docs/account-link-diagnostic.ini.example'] = (ROOT/'config/account-link-diagnostic.ini.example').read_bytes()
     # The patch must match the actual binary's recorded source revision.
     patch = subprocess.check_output(['git','diff','--binary',UPSTREAM,args.source_commit], cwd=ROOT)
@@ -90,6 +104,7 @@ def main():
         'documentation_commit': git('rev-parse','HEAD'),
         'upstream_commit': UPSTREAM,
         'atmosphere_libs_commit': git('rev-parse',args.source_commit+':Atmosphere-libs'),
+        'libnx_commit': git('rev-parse',args.source_commit+':dependencies/libnx'),
         **manifest_input,
         'files': {name: hashlib.sha256(data).hexdigest() for name,data in files.items()},
     }

@@ -2,15 +2,17 @@
 
 [English](README-TEST.en.md) · **中文**
 
-适用于 **HOS 22.5.0 / Atmosphère 1.11.2 / emuMMC**，并且已经配置好 Nextendo Prelude 的主机。
+本候选包面向 **HOS 23.0.1 / Atmosphère 1.12.1 / emuMMC**。已修复旧库拒绝 23.x 的启动检查；本候选二进制尚未通过实机账号流程验收。详细证据见 [HOS23-COMPATIBILITY.md](HOS23-COMPATIBILITY.md)。
+
+Prelude v4.0.19 的 Account Link 按钮仍拒绝 23.x，并嵌入旧版模块；它不会安装本候选。安装现有模块更新前，先将 SD 卡上的整个 `atmosphere/contents/4200000000000666` 目录复制到电脑作备份。
 
 > 新安装用户不需要提前创建或备份 `4200000000000666` 文件夹，也不需要手动放置 `exefs.nsp`、`mitm.lst` 或 `boot2.flag`。直接解压整个发布包即可。
 
 ## 安装步骤
 
-1. 从 [Releases](https://github.com/W-874/network_mitm/releases/tag/v2.0.0-account-link-fallback) 下载：
+1. 使用本次构建交付的候选包（旧版 release ZIP 不支持 23.x）：
 
-   `network_mitm-account-link-fallback-v2-system-only.zip`
+   `network_mitm-hos2301-ams1121-candidate.zip`
 
 2. 将 Switch **完全关机**，取出 SD 卡并连接电脑。
 
@@ -47,7 +49,7 @@
 - 保持现有 Prelude hosts、DNS 和信任配置不变。
 - 不要添加其他 Program ID、CA 或 TLS verification bypass。
 - 不要将本模块用于 Nintendo production endpoint。
-- 已确认 Account Link 和 Mario Kart 8 Deluxe 联机可用。
+- 旧版在 HOS 22.5 上有 Account Link / Mario Kart 8 Deluxe 成功记录；本次新二进制的 23.0.1 实机结果尚未验证。
 - 删除已经关联的用户仍会报 `2002-0001`，目前不支持该操作。
 
 ## 卸载

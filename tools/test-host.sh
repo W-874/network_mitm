@@ -6,3 +6,4 @@ trap 'rm -f "$test_bin"' EXIT
 "${CXX:-g++}" -std=c++17 -Wall -Wextra -Werror -O2 \
     ${SANITIZER_FLAGS:-} -Inetwork_mitm/source tests/test_pki.cpp -o "$test_bin"
 "$test_bin"
+python3 tests/test_firmware.py

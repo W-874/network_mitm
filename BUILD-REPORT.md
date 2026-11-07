@@ -1,3 +1,26 @@
+# HOS 23.0.1 candidate build
+
+Variant `account-link-fallback-v2-hos2301`, target HOS 23.0.1 / Atmosphere 1.12.1.
+This source targets the new firmware; device boot, account completion and old-firmware regression have not been established for this candidate. Read `HOS23-COMPATIBILITY.md` for the exact repaired startup gate and upstream installer limitation.
+
+Build from an immutable clean source commit with initialized submodules:
+
+```sh
+git submodule update --init --recursive
+bash tools/test-host.sh
+python3 tools/package.py --check-input
+bash tools/build-target.sh
+python3 tools/package.py --sd out/sd --source-commit HEAD --output out/network_mitm-hos2301-ams1121-candidate.zip
+```
+
+`tools/build-target.sh` uses the image and dependency commits in `BUILD-DEPS.json`. It builds/installs the pinned libnx, clean builds both libstratosphere and the module, checks the generated NSP and records `out/TARGET-BUILD.json`. The container network is disabled; no package manager upgrade runs. Its compiler is devkitA64 GCC 15.2.0. `SOURCE_DATE_EPOCH` comes from the source commit, Git abbreviation is fixed at eight characters. Packaging rejects a dirty tree, a mismatched source/dependency pin, or an NSP whose hash differs from that build stamp.
+
+Expected binary properties: Program ID `4200000000000666`, sole reserved service `ssl:s`, BSS below 3 MiB; one manager, 16 sessions, 16 domains, 256 objects, two workers, 64 KiB pointer capacity. Host tests exercise policy/error/cleanup behavior plus the actual upstream firmware initializer with mocked platform I/O. They do not establish device SSL ABI or account/business success.
+
+The generated delivery report contains actual build/test/hash results; a successful manifest-input check alone is not target-build evidence. Historical build records follow and refer to their old target only.
+
+---
+
 # account-link-fallback-v2 build report
 
 This source tree contains a **controlled diagnostic**. The NPNS extension has

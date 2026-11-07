@@ -1,3 +1,9 @@
+# Current HOS 23.0.1 candidate
+
+2026-11-07: source now pins Atmosphere-libs cf48d233 and libnx cd824f90 for HOS 23.0.1 / AMS 1.12.1. Old d3083af deterministically rejects firmware major 23 during __appInit. This candidate fixes that source-level startup defect and preserves existing SSL policy/wrappers. See HOS23-COMPATIBILITY.md and BUILD-REPORT.md. Device boot, account completion, online play and HOS22.5 regression remain unverified for the new binary. Prelude v4.0.19 still bundles old v2 and blocks its installation on >=23; this change does not override that guard. Historical notes below are scoped to the old binary.
+
+---
+
 # Nextendo / network_mitm handoff
 
 ## Snapshot

@@ -19,8 +19,8 @@ NETWORK_MITM_VERSION := $(NETWORK_MITM_VERSION_MAJOR).$(NETWORK_MITM_VERSION_MIN
 all: dist
 
 build:
-	make -C Atmosphere-libs/libstratosphere nx_release
-	make -C network_mitm all
+	$(MAKE) -C Atmosphere-libs/libstratosphere nx_release
+	$(MAKE) -C network_mitm all
 
 pack: build
 	@mkdir -p $(TITLE_DIR)/flags
@@ -33,7 +33,7 @@ dist: pack
 	@cd $(SD_ROOT); zip -r ../network_mitm-$(NETWORK_MITM_VERSION).zip ./* > /dev/null; cd ../;
 
 clean:
-	make -C Atmosphere-libs/libstratosphere clean
-	make -C network_mitm clean
+	$(MAKE) -C Atmosphere-libs/libstratosphere clean
+	$(MAKE) -C network_mitm clean
 
 .PHONY: all build pack dist clean
